@@ -1092,6 +1092,20 @@ function exportICS(){
       'BEGIN:VALARM','TRIGGER:PT0M','ACTION:DISPLAY','DESCRIPTION:'+icsEsc('回顾 · '+r.content),
       'END:VALARM','END:VEVENT');
   });
+  /* 上次导出过、现在已经做完或已退出的：发一条同 UID 的取消事件，
+     让日历把那条旧提醒撤掉，不然做完了到点还会弹。 */
+  var live={}; pend.forEach(function(r){ live[r.id]=1; });
+  (db.ics.ids||[]).forEach(function(id){
+    if(live[id]) return;
+    var old=db.reviews.filter(function(x){return x.id===id;})[0];
+    if(!old) return;
+    var d0=old.dueDate.replace(/-/g,'');
+    L.push('BEGIN:VEVENT','UID:'+id+'@study-rhythm','DTSTAMP:'+stamp,
+      'DTSTART:'+d0+'T'+hh+mm+'00','DTEND:'+d0+'T'+hh+mm+'01',
+      'SUMMARY:'+icsEsc('回顾 · '+old.content),'STATUS:CANCELLED','SEQUENCE:2',
+      'END:VEVENT');
+  });
+
   /* 每天一条固定提醒：日历里的心跳，哪怕后来新排的回顾没同步进来，
      它也会每天叫你打开看一眼。默认关，由设置里的开关决定。 */
   if(db.ics.daily){
