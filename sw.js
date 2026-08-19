@@ -1,7 +1,8 @@
 /* 学习节奏 · 离线缓存
    目标：装到主屏后，没网也能打开、也能录入（数据本来就存在本地）。 */
-var CACHE = 'rhythm-v1';
-var ASSETS = ['./', './index.html', './icon.png', './manifest.json'];
+var CACHE = 'rhythm-v2';
+var ASSETS = ['./', './index.html', './manifest.json',
+  './icon.png', './icon-192.png', './icon-512.png', './icon-maskable-512.png'];
 
 self.addEventListener('install', function (e) {
   self.skipWaiting();
