@@ -186,7 +186,8 @@ circle.grow{transition:r 950ms var(--ease)}
 .rcell.done{background:var(--amber-4);color:#8A5E08;border-color:var(--amber-3)}
 .rcell.due{background:var(--amber);color:#fff;cursor:pointer;font-weight:600}
 .rcell.due:active{transform:scale(.9)}
-.rcell.soon{background:transparent;border:1px dashed var(--sep-2)}
+.rcell.soon{background:transparent;border:1px dashed var(--sep-2);cursor:pointer;color:var(--ink-2)}
+.rcell.soon:active{transform:scale(.9)}
 .rcell.none{background:transparent;color:#D2CCC2}
 .rpick{display:flex;gap:3px;justify-content:center}
 .rpick button{border:1px solid var(--amber-2);background:#fff;color:#8A5E08;font-size:11px;border-radius:7px;
@@ -321,9 +322,6 @@ details summary::-webkit-details-marker{display:none}
       <div class="rowline"><div class="grow"><div>导出到日历</div>
         <div style="font-size:12.5px;margin-top:2px" id="icsSync">还没导出过</div></div>
         <button class="ghost tap" id="icsBtn">导出</button></div>
-      <div class="rowline"><div class="grow"><div>日历里加每天一条固定提醒</div>
-        <div style="font-size:12.5px;color:var(--ink-3);margin-top:2px">哪怕没同步新回顾，也会每天叫你看一眼</div></div>
-        <div class="sw" id="icsDailySw"><i></i></div></div>
       <div class="rowline"><div class="grow">备份全部数据</div>
         <button class="ghost tap" id="exportBtn">JSON</button></div>
       <div class="rowline"><div class="grow">从备份恢复</div>
@@ -375,7 +373,8 @@ function load(){
     db.reviews=Array.isArray(d.reviews)?d.reviews:[];
     db.mastery=(d.mastery&&typeof d.mastery==='object')?d.mastery:{};
     if(d.notify) db.notify={on:!!d.notify.on,time:d.notify.time||'08:00'};
-    if(d.ics) db.ics={at:d.ics.at||null,ids:Array.isArray(d.ics.ids)?d.ics.ids:[],daily:!!d.ics.daily};
+    if(d.ics) db.ics={at:d.ics.at||null,days:(d.ics.days&&typeof d.ics.days==='object')?d.ics.days:{},
+      legacyIds:Array.isArray(d.ics.ids)?d.ics.ids:(d.ics.legacyIds||[])};
     if(d.calHour) db.calHour=d.calHour;
   }catch(e){}
 }
@@ -447,33 +446,74 @@ function mirrorToIDB(){
 
 /* ================= 复习 ================= */
 function pendings(){ return db.reviews.filter(function(r){return r.status==='pending';}); }
+/* 同一条内容只保留最靠前的那一轮，避免同一天重复出现 */
+function firstPerSource(list){
+  var seen={},out=[];
+  list.sort(function(a,b){ return a.dueDate!==b.dueDate? (a.dueDate<b.dueDate?-1:1) : a.round-b.round; })
+    .forEach(function(r){ if(seen[r.sourceId]) return; seen[r.sourceId]=1; out.push(r); });
+  return out;
+}
 function dueToday(){ var t=todayStr();
-  return pendings().filter(function(r){ return daysBetween(r.dueDate,t)>=0; })
-    .sort(function(a,b){ return a.dueDate<b.dueDate?-1:1; }); }
-function dueOn(date){ return pendings().filter(function(r){ return r.dueDate===date; }); }
+  return firstPerSource(pendings().filter(function(r){ return daysBetween(r.dueDate,t)>=0; })); }
+function dueOn(date){
+  var t=todayStr();
+  return firstPerSource(pendings().filter(function(r){ return r.dueDate===date; }))
+    .filter(function(r){
+      /* 今天之前还欠着的，会在「今天」那格出现，未来那天就不重复列 */
+      return date<=t || !pendings().some(function(x){
+        return x.sourceId===r.sourceId && x.round<r.round && daysBetween(x.dueDate,t)>=0; });
+    });
+}
 function reviewsOf(id){ return db.reviews.filter(function(x){return x.sourceId===id;})
   .sort(function(a,b){return a.round-b.round;}); }
-function scheduleFirst(rec){
-  db.reviews.push({id:uid(),sourceId:rec.id,content:rec.content,dueDate:addDays(rec.date,OFFSETS[0]),
-    round:1,status:'pending',completedAt:null});
+/* 学的当天就把五轮全排出来：1 / 3 / 7 / 16 / 35 天。
+   排满了台账才看得见规律，日历才导得出未来几周，每一轮也才能单独勾。 */
+function schedulePlan(rec){
+  OFFSETS.forEach(function(off,i){
+    db.reviews.push({id:uid(),sourceId:rec.id,content:rec.content,dueDate:addDays(rec.date,off),
+      round:i+1,status:'pending',completedAt:null});
+  });
 }
-function nextGap(round,mood){
-  var next=OFFSETS[round]; if(next==null) return null;
-  var gap=next-OFFSETS[round-1];
-  if(mood==='卡') gap=Math.max(1,Math.round(gap/2));
-  if(mood==='顺') gap=Math.round(gap*1.3);
-  return gap;
+/* 老数据只排了第 1 轮，这里补齐后面几轮 */
+function migratePlans(){
+  var changed=false;
+  db.records.forEach(function(rec){
+    var rv=reviewsOf(rec.id);
+    if(!rv.length) return;                                   // 不是新学，或已整条退出
+    if(rv.some(function(x){return x.status==='retired';})) return;
+    var maxRound=Math.max.apply(null,rv.map(function(x){return x.round;}));
+    if(maxRound>=OFFSETS.length) return;
+    var last=rv.filter(function(x){return x.round===maxRound;})[0];
+    var base=last.status==='done'&&last.completedAt? ymd(new Date(last.completedAt)) : last.dueDate;
+    for(var k=maxRound+1;k<=OFFSETS.length;k++){
+      db.reviews.push({id:uid(),sourceId:rec.id,content:rec.content,
+        dueDate:addDays(base,OFFSETS[k-1]-OFFSETS[maxRound-1]),
+        round:k,status:'pending',completedAt:null});
+      changed=true;
+    }
+  });
+  if(changed) save();
+}
+/* 完成一轮后，把这一条内容剩下的轮次整体重排：
+   标「卡」缩到一半（忘得快，追着问）；标「顺」拉长三成；「一般」照表走。 */
+function reflow(sourceId,doneRound,mood){
+  var f = mood==='卡'?0.5 : (mood==='顺'?1.3:1);
+  var base=todayStr(), next=null;
+  db.reviews.filter(function(x){
+    return x.sourceId===sourceId && x.status==='pending' && x.round>doneRound;
+  }).sort(function(a,b){return a.round-b.round;}).forEach(function(x){
+    var gap=OFFSETS[x.round-1]-OFFSETS[doneRound-1];
+    x.dueDate=addDays(base, Math.max(x.round-doneRound, Math.round(gap*f)));
+    if(!next) next=x;
+  });
+  return next;
 }
 function completeReview(id,mood){
   var r=db.reviews.filter(function(x){return x.id===id;})[0]; if(!r) return;
   r.status='done'; r.completedAt=new Date().toISOString(); r.mood=mood;
-  var gap=nextGap(r.round,mood);
-  if(gap!=null){
-    var due=addDays(todayStr(),gap);
-    db.reviews.push({id:uid(),sourceId:r.sourceId,content:r.content,dueDate:due,round:r.round+1,
-      status:'pending',completedAt:null});
-    toast('下次回顾 '+md(due)+'（'+gap+' 天后）');
-  }else toast('这块的回顾表走完了');
+  var next=reflow(r.sourceId,r.round,mood);
+  toast(next? '下次回顾 '+md(next.dueDate)+'（'+daysBetween(todayStr(),next.dueDate)+' 天后）'
+            : '这块的五轮走完了');
   buzzOK(); save(); renderAll(); scheduleNotifications();
 }
 function retire(sourceId){
@@ -608,18 +648,16 @@ function renderNotifUI(){
   }).join('');
 
   /* 日历同步状态 */
-  var miss=icsMissing().length;
-  var syncTxt = !db.ics.at ? '还没导出过'
-    : (miss? '有 '+miss+' 条新排的回顾还没进日历' : '日历是最新的 · '+md(ymd(new Date(db.ics.at))) + ' 导出');
+  var miss=icsMissing();
+  var syncTxt = !db.ics.at ? '还没导出过 · 一周导一次就够'
+    : (miss? '有 '+miss+' 条新排的回顾还没进日历' : '日历是最新的 · '+md(ymd(new Date(db.ics.at)))+' 导出');
   var el2=document.getElementById('icsSync');
   if(el2){ el2.textContent=syncTxt; el2.style.color = miss? 'var(--amber)':'var(--ink-3)'; }
-  var dsw=document.getElementById('icsDailySw');
-  if(dsw) dsw.classList.toggle('on', !!db.ics.daily);
 
   /* 顶部提示条：一次只出一条，优先提醒日历落后 */
   var b=document.getElementById('notifBanner');
   b.innerHTML='';
-  if(db.ics.at && miss>=3){
+  if(db.ics.at && miss>=5){
     var n1=el('<div class="banner"><div class="txt">有 '+miss+' 条新排的回顾还没进日历，重导一次就同步了。</div>'+
       '<button>重导</button></div>');
     n1.querySelector('button').onclick=function(){ buzz(10); exportICS(); };
@@ -721,7 +759,10 @@ function addRecord(){
     note:document.getElementById('note').value.trim(),createdAt:new Date().toISOString()};
   db.records.push(rec);
   var msg='记下了 · '+fmtDur(minutes);
-  if(rec.type==='新学'){ scheduleFirst(rec); msg='记下了 · 明天('+md(addDays(rec.date,OFFSETS[0]))+')第一次回顾'; }
+  if(rec.type==='新学'){
+    schedulePlan(rec);
+    msg='回顾排好了 · '+OFFSETS.map(function(o){return md(addDays(rec.date,o));}).join(' · ');
+  }
   buzzOK(); save(); resetForm(); renderAll(true); scheduleNotifications(); toast(msg);
 }
 
@@ -944,7 +985,7 @@ function renderLedger(){
   wrap.innerHTML=html;
   var more=document.getElementById('lgMore');
   if(more) more.onclick=function(){ buzz(8); lgLimit+=40; renderLedger(); };
-  wrap.querySelectorAll('.rcell.due').forEach(function(c){
+  wrap.querySelectorAll('.rcell[data-rid]').forEach(function(c){
     c.onclick=function(){ buzz(10); pickMood(c.parentNode,c.getAttribute('data-rid')); }; });
 }
 function cellHTML(x,retired,t){
@@ -952,8 +993,8 @@ function cellHTML(x,retired,t){
   if(x.status==='done'){ var dd=x.completedAt?md(ymd(new Date(x.completedAt))):md(x.dueDate);
     return '<span class="rcell done">'+dd+' ✓</span>'; }
   if(x.status==='retired') return '<span class="rcell none">熟</span>';
-  if(daysBetween(x.dueDate,t)>=0) return '<span class="rcell due" data-rid="'+x.id+'">'+md(x.dueDate)+'</span>';
-  return '<span class="rcell soon">'+md(x.dueDate)+'</span>';
+  var cls = daysBetween(x.dueDate,t)>=0 ? 'due' : 'soon';
+  return '<span class="rcell '+cls+'" data-rid="'+x.id+'">'+md(x.dueDate)+'</span>';
 }
 function pickMood(td,rid){
   td.innerHTML='<div class="rpick">'+MOODS.map(function(m){return '<button data-m="'+m+'">'+m+'</button>';}).join('')+'</div>';
@@ -1063,14 +1104,27 @@ function exportCSV(){
   buzz(12); toast('已导出 CSV');
 }
 function icsEsc(s){ return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\n/g,'\\n'); }
-/* 日历里还缺多少条：上次导出之后新排的回顾 */
-function icsMissing(){
-  var have={}; (db.ics.ids||[]).forEach(function(id){ have[id]=1; });
-  return pendings().filter(function(r){ return !have[r.id]; });
+/* 未来每一天要回顾什么：过期没做的全部折进「今天」 */
+function calendarDays(){
+  var t=todayStr(),map={},td=dueToday();
+  if(td.length) map[t]=td;
+  for(var i=1;i<=120;i++){
+    var d=addDays(t,i),l=dueOn(d);
+    if(l.length) map[d]=l;
+  }
+  return map;
 }
+/* 日历里还差多少条没同步 */
+function icsMissing(){
+  var now=calendarDays(),old=(db.ics&&db.ics.days)||{},n=0;
+  Object.keys(now).forEach(function(d){ n+=Math.max(0, now[d].length-(old[d]||0)); });
+  return n;
+}
+/* 一天一条事件：到点一次提醒，列出当天全部要回顾的内容。
+   UID 用日期，所以重复导入是覆盖更新，不会堆重复。 */
 function exportICS(){
-  var pend=pendings().sort(function(a,b){return a.dueDate<b.dueDate?-1:1;});
-  if(!pend.length){ toast('现在没有排着的回顾'); return; }
+  var days=calendarDays(), keys=Object.keys(days).sort();
+  if(!keys.length){ toast('现在没有排着的回顾'); return; }
   var def=db.calHour||db.notify.time||'08:00';
   var t=prompt('日历里几点提醒你？',def);
   if(t===null) return;
@@ -1081,52 +1135,51 @@ function exportICS(){
   var now=new Date();
   var stamp=now.getUTCFullYear()+pad(now.getUTCMonth()+1)+pad(now.getUTCDate())+'T'+
     pad(now.getUTCHours())+pad(now.getUTCMinutes())+pad(now.getUTCSeconds())+'Z';
+  var endM=parseInt(mm,10)+20,endH=parseInt(hh,10)+Math.floor(endM/60);
   var L=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//学习节奏//ZH','CALSCALE:GREGORIAN','METHOD:PUBLISH'];
-  pend.forEach(function(r){
-    var d=r.dueDate.replace(/-/g,''),endM=parseInt(mm,10)+20,endH=parseInt(hh,10)+Math.floor(endM/60);
-    var src=db.records.filter(function(x){return x.id===r.sourceId;})[0];
-    L.push('BEGIN:VEVENT','UID:'+r.id+'@study-rhythm','DTSTAMP:'+stamp,
+  var total=0;
+
+  keys.forEach(function(day){
+    var list=days[day], d=day.replace(/-/g,'');
+    total+=list.length;
+    var body=list.map(function(r,i){
+      return (i+1)+'. '+r.content+'（第 '+r.round+' 回）';
+    }).join('\n');
+    L.push('BEGIN:VEVENT','UID:day-'+d+'@study-rhythm','DTSTAMP:'+stamp,'SEQUENCE:'+Math.floor(Date.now()/60000%100000),
       'DTSTART:'+d+'T'+hh+mm+'00','DTEND:'+d+'T'+pad(endH%24)+pad(endM%60)+'00',
-      'SUMMARY:'+icsEsc('回顾 · '+r.content),
-      'DESCRIPTION:'+icsEsc('第 '+r.round+' 次回顾'+(src?' · 初学于 '+src.date+(src.note?' · '+src.note:''):'')),
-      'BEGIN:VALARM','TRIGGER:PT0M','ACTION:DISPLAY','DESCRIPTION:'+icsEsc('回顾 · '+r.content),
-      'END:VALARM','END:VEVENT');
-  });
-  /* 上次导出过、现在已经做完或已退出的：发一条同 UID 的取消事件，
-     让日历把那条旧提醒撤掉，不然做完了到点还会弹。 */
-  var live={}; pend.forEach(function(r){ live[r.id]=1; });
-  (db.ics.ids||[]).forEach(function(id){
-    if(live[id]) return;
-    var old=db.reviews.filter(function(x){return x.id===id;})[0];
-    if(!old) return;
-    var d0=old.dueDate.replace(/-/g,'');
-    L.push('BEGIN:VEVENT','UID:'+id+'@study-rhythm','DTSTAMP:'+stamp,
-      'DTSTART:'+d0+'T'+hh+mm+'00','DTEND:'+d0+'T'+hh+mm+'01',
-      'SUMMARY:'+icsEsc('回顾 · '+old.content),'STATUS:CANCELLED','SEQUENCE:2',
-      'END:VEVENT');
+      'SUMMARY:'+icsEsc('回顾 '+list.length+' 条 · '+list[0].content.slice(0,12)+(list.length>1?' 等':'')),
+      'DESCRIPTION:'+icsEsc(body+'\n\n打开「学习节奏」，逐条标记顺 / 一般 / 卡。'),
+      'BEGIN:VALARM','TRIGGER:PT0M','ACTION:DISPLAY',
+      'DESCRIPTION:'+icsEsc('今天要回顾 '+list.length+' 条'),'END:VALARM','END:VEVENT');
   });
 
-  /* 每天一条固定提醒：日历里的心跳，哪怕后来新排的回顾没同步进来，
-     它也会每天叫你打开看一眼。默认关，由设置里的开关决定。 */
-  if(db.ics.daily){
-    var s=parseYMD(todayStr()); s.setDate(s.getDate()+1);
-    var sd=ymd(s).replace(/-/g,'');
-    var em2=parseInt(mm,10)+15,eh2=parseInt(hh,10)+Math.floor(em2/60);
-    L.push('BEGIN:VEVENT','UID:daily-heartbeat@study-rhythm','DTSTAMP:'+stamp,
-      'DTSTART:'+sd+'T'+hh+mm+'00','DTEND:'+sd+'T'+pad(eh2%24)+pad(em2%60)+'00',
-      'RRULE:FREQ=DAILY;COUNT=400',
-      'SUMMARY:'+icsEsc('看一眼今天要回顾什么'),
-      'DESCRIPTION:'+icsEsc('打开「学习节奏」，今天该回顾的排在最上面。'),
-      'BEGIN:VALARM','TRIGGER:PT0M','ACTION:DISPLAY',
-      'DESCRIPTION:'+icsEsc('看一眼今天要回顾什么'),'END:VALARM','END:VEVENT');
-  }
+  /* 上次导过、现在已经空掉的那些天：撤掉旧提醒 */
+  var live={}; keys.forEach(function(k){ live[k]=1; });
+  Object.keys((db.ics&&db.ics.days)||{}).forEach(function(day){
+    if(live[day]) return;
+    var d=day.replace(/-/g,'');
+    L.push('BEGIN:VEVENT','UID:day-'+d+'@study-rhythm','DTSTAMP:'+stamp,'SEQUENCE:'+Math.floor(Date.now()/60000%100000+1),
+      'DTSTART:'+d+'T'+hh+mm+'00','DTEND:'+d+'T'+hh+mm+'01',
+      'SUMMARY:'+icsEsc('回顾'),'STATUS:CANCELLED','END:VEVENT');
+  });
+
+  /* 旧版是「一条回顾一个事件」，换成按天之后那批旧事件不会自己消失，
+     这里按原 UID 逐条撤销，撤完就不再重复发。 */
+  (db.ics.legacyIds||[]).forEach(function(id){
+    var old=db.reviews.filter(function(x){return x.id===id;})[0];
+    var d0=(old? old.dueDate : todayStr()).replace(/-/g,'');
+    L.push('BEGIN:VEVENT','UID:'+id+'@study-rhythm','DTSTAMP:'+stamp,'SEQUENCE:9',
+      'DTSTART:'+d0+'T'+hh+mm+'00','DTEND:'+d0+'T'+hh+mm+'01',
+      'SUMMARY:'+icsEsc('回顾'),'STATUS:CANCELLED','END:VEVENT');
+  });
+
   L.push('END:VCALENDAR');
-  db.ics.at=new Date().toISOString();
-  db.ics.ids=pend.map(function(r){return r.id;});
+  var sig={}; keys.forEach(function(k){ sig[k]=days[k].length; });
+  db.ics={at:new Date().toISOString(),days:sig,legacyIds:[]};
   save();
   download(new Blob([L.join('\r\n')],{type:'text/calendar;charset=utf-8'}),'学习回顾-'+todayStr()+'.ics');
   buzz(12); renderAll();
-  toast(pend.length+' 条已导出 · 导入日历时选「覆盖/合并」都行');
+  toast(keys.length+' 天 · '+total+' 条已导出');
 }
 function importJSON(file){
   var fr=new FileReader();
@@ -1175,6 +1228,7 @@ function bindSeg(id,cb){
 function init(){
   load();
   try{ localStorage.setItem('__t','1'); localStorage.removeItem('__t'); }catch(e){ storageOK=false; }
+  migratePlans();
   var t=today(),wd=['周日','周一','周二','周三','周四','周五','周六'][t.getDay()];
   document.getElementById('todayDate').textContent=(t.getMonth()+1)+' 月 '+t.getDate()+' 日 · '+wd;
   buildTags(); sync();
@@ -1194,9 +1248,6 @@ function init(){
     if(e.target.files&&e.target.files[0]) importJSON(e.target.files[0]); e.target.value=''; };
   document.getElementById('notifSw').onclick=function(){ buzz(10); toggleNotif(); };
   document.getElementById('notifTest').onclick=testNotification;
-  document.getElementById('icsDailySw').onclick=function(){
-    buzz(10); db.ics.daily=!db.ics.daily; save(); renderNotifUI();
-    toast(db.ics.daily? '下次导出会带上这条每日提醒':'已关掉每日固定提醒'); };
   document.getElementById('notifTime').onchange=function(){
     db.notify.time=this.value||'08:00'; save(); scheduleNotifications();
     buzz(8); toast('提醒时间改为 '+db.notify.time); };
