@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>学习节奏</title>
+<meta name="theme-color" content="#F3F1EB">
+<meta name="format-detection" content="telephone=no,date=no,address=no,email=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="学习节奏">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="icon" href="icon.png">
+<link rel="manifest" href="manifest.json">
+<style>
+:root{
+  --bg:#F3F1EB;
+  --card:#FFFFFF;
+  --ink:#211F1C;
+  --ink-2:#6B6660;
+  --ink-3:#9A948C;
+  --sep:rgba(0,0,0,.07);
+  --fill:#EFECE4;
+  --amber:#D0900F;
+  --amber-2:#E9B44C;
+  --amber-3:#F6E3BC;
+  --amber-4:#FCF4E2;
+  --quiet:#DFE2DC;
+  --quiet-2:#E9EBE6;
+  --danger:#9E4B3C;
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro SC","SF Pro Text","PingFang SC","HarmonyOS Sans SC","Source Han Sans SC","Noto Sans SC","Microsoft YaHei",system-ui,sans-serif;
+  --mono:"SF Mono",ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.55;
+  -webkit-font-smoothing:antialiased;padding:0 0 60px;letter-spacing:-.01em}
+.wrap{max-width:640px;margin:0 auto;
+  padding:0 calc(16px + env(safe-area-inset-left)) env(safe-area-inset-bottom) calc(16px + env(safe-area-inset-right))}
+h1,h2{margin:0;font-weight:600}
+.masthead{padding:calc(30px + env(safe-area-inset-top)) 4px 18px}
+.masthead h1{font-size:30px;letter-spacing:-.03em}
+.masthead .sub{color:var(--ink-3);font-size:14px;margin-top:2px}
+.card{background:var(--card);border-radius:18px;padding:20px;margin-bottom:14px;
+  box-shadow:0 1px 2px rgba(40,35,25,.05),0 12px 28px -22px rgba(40,35,25,.4)}
+.ttl{font-size:13px;font-weight:600;color:var(--ink-3);letter-spacing:.02em;margin-bottom:14px;
+  display:flex;align-items:center;justify-content:space-between;gap:10px}
+.ttl .n{font-family:var(--mono);color:var(--amber);font-size:13px}
+.lab{font-size:13px;color:var(--ink-3);margin:18px 0 8px}
+input[type=text]{width:100%;font-family:var(--sans);font-size:17px;color:var(--ink);background:var(--fill);
+  border:1px solid transparent;border-radius:12px;padding:13px 14px;outline:none;transition:.16s;letter-spacing:-.01em}
+input[type=text]:focus{background:#fff;border-color:var(--amber-2)}
+input[type=time]{font-family:var(--mono);font-size:15px;border:1px solid var(--sep);background:var(--fill);
+  border-radius:9px;padding:5px 8px;color:var(--ink);outline:none}
+input[type=number]{width:110px;font-family:var(--mono);font-size:16px;background:var(--fill);border:1px solid transparent;
+  border-radius:10px;padding:9px 12px;outline:none;color:var(--ink)}
+input[type=number]:focus{background:#fff;border-color:var(--amber-2)}
+.tags{display:flex;flex-wrap:wrap;gap:8px}
+.tag{border:1px solid var(--sep);background:var(--card);color:var(--ink-2);border-radius:999px;
+  padding:8px 15px;font-size:14.5px;cursor:pointer;user-select:none;transition:.16s}
+.tag:hover{border-color:var(--amber-2)}
+.tag.on{background:var(--amber-4);border-color:var(--amber-2);color:#8A5E08;font-weight:500}
+.tag.num{font-family:var(--mono)}
+.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.btn{border:none;border-radius:13px;padding:14px;font-size:16.5px;font-family:var(--sans);cursor:pointer;
+  transition:transform .09s,background .16s;font-weight:600;letter-spacing:-.01em}
+.btn:active{transform:scale(.985)}
+.btn-main{background:var(--amber);color:#fff;width:100%;margin-top:20px}
+.btn-main:hover{background:#B87D0B}
+.ghost{background:var(--fill);border:none;color:var(--ink-2);padding:9px 14px;font-size:14px;border-radius:10px;
+  cursor:pointer;font-family:var(--sans);transition:.16s}
+.ghost:hover{background:var(--amber-4);color:#8A5E08}
+.seg{display:flex;background:var(--fill);border-radius:11px;padding:3px;gap:2px;margin-bottom:18px}
+.seg button{flex:1;border:0;background:transparent;font-family:var(--sans);font-size:14px;color:var(--ink-2);
+  padding:7px 4px;border-radius:9px;cursor:pointer;transition:.16s;font-weight:500;letter-spacing:-.01em}
+.seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(40,35,25,.14)}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.stat .k{font-family:var(--mono);font-size:23px;letter-spacing:-.03em;line-height:1.25}
+.stat .u{font-family:var(--mono);font-size:12px;color:var(--ink-3);margin-left:1px}
+.stat .l{font-size:12px;color:var(--ink-3);margin-top:2px}
+.line{font-size:15.5px;color:var(--ink-2);line-height:1.7}
+.line b{color:var(--ink);font-family:var(--mono);font-weight:500;letter-spacing:-.02em}
+.item{display:flex;gap:12px;align-items:flex-start;padding:13px 0;border-top:1px solid var(--sep)}
+.item:first-child{border-top:0}
+.item .c{flex:1;min-width:0}
+.item .t{font-size:15.5px;line-height:1.4}
+.item .m{font-size:12.5px;color:var(--ink-3);margin-top:3px;font-family:var(--mono)}
+.item .min{font-family:var(--mono);font-size:14.5px;color:var(--amber);flex:none;width:62px;text-align:right;padding-top:1px}
+.note{font-size:14px;color:var(--ink-2);margin-top:5px;padding-left:10px;border-left:2px solid var(--amber-3)}
+.mini{font-size:13.5px;border:1px solid var(--sep);background:var(--card);color:var(--ink-2);border-radius:9px;
+  padding:6px 13px;cursor:pointer;transition:.15s;font-family:var(--sans)}
+.mini:hover{border-color:var(--amber-2);background:var(--amber-4);color:#8A5E08}
+.mini.on{background:var(--amber-4);border-color:var(--amber-2);color:#8A5E08}
+.acts{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}
+.steps{display:flex;gap:5px;align-items:center;margin-top:7px}
+.step{width:7px;height:7px;border-radius:50%;background:var(--quiet)}
+.step.done{background:var(--amber-2)}
+.step.now{background:var(--amber);box-shadow:0 0 0 3px var(--amber-4)}
+.del{border:0;background:none;color:#CFCAC1;cursor:pointer;font-size:17px;padding:0 2px;line-height:1}
+.del:hover{color:var(--danger)}
+.empty{color:var(--ink-3);font-size:15px;padding:4px 0}
+.heat{display:flex;gap:3px;overflow-x:auto;padding-bottom:2px}
+.heatcol{display:flex;flex-direction:column;gap:3px}
+.cell{width:13px;height:13px;border-radius:3.5px;background:var(--quiet-2)}
+.legend{display:flex;align-items:center;gap:6px;margin-top:12px;font-size:12px;color:var(--ink-3);font-family:var(--mono)}
+.legend .cell{width:11px;height:11px}
+svg{display:block;max-width:100%}
+circle.grow{transition:r 950ms cubic-bezier(.22,.9,.28,1)}
+.tbl{width:100%;border-collapse:collapse;font-size:14.5px}
+.tbl td{padding:9px 0;border-top:1px solid var(--sep);vertical-align:middle}
+.tbl tr:first-child td{border-top:0}
+.tbl td.n{font-family:var(--mono);text-align:right;color:var(--ink-3);white-space:nowrap;padding-left:12px;font-size:13px}
+.bar{height:8px;border-radius:5px;background:var(--amber-2);min-width:4px}
+.bar.dim{background:var(--quiet)}
+/* 台账 */
+.lgwrap{overflow-x:auto;margin:0 -20px;padding:0 20px}
+.lg{border-collapse:separate;border-spacing:0;font-size:14px;min-width:100%}
+.lg th{font-size:11.5px;font-weight:500;color:var(--ink-3);text-align:center;padding:0 0 8px;white-space:nowrap;font-family:var(--mono)}
+.lg th.l{text-align:left}
+.lg td{border-top:1px solid var(--sep);padding:11px 0;vertical-align:top}
+.lg tr:first-child td{border-top:0}
+.lg .cd{white-space:nowrap;padding-right:14px}
+.lg .cd .d{font-family:var(--mono);font-size:14.5px;letter-spacing:-.02em}
+.lg .cd .h{font-family:var(--mono);font-size:11.5px;color:var(--ink-3);display:block}
+.lg .cc{min-width:150px;padding-right:14px}
+.lg .cc .t{line-height:1.35}
+.lg .cc .m{font-size:12px;color:var(--ink-3);margin-top:2px}
+.lg .rc{text-align:center;padding-left:5px;padding-right:5px;width:52px}
+.rcell{display:inline-block;font-family:var(--mono);font-size:11.5px;line-height:1;padding:6px 7px;border-radius:8px;
+  min-width:44px;background:var(--fill);color:var(--ink-3);border:1px solid transparent}
+.rcell.done{background:var(--amber-4);color:#8A5E08;border-color:var(--amber-3)}
+.rcell.due{background:var(--amber);color:#fff;cursor:pointer;font-weight:600}
+.rcell.due:hover{background:#B87D0B}
+.rcell.soon{background:transparent;border:1px dashed var(--sep);color:var(--ink-3)}
+.rcell.none{background:transparent;color:#CFCAC1}
+.rpick{display:flex;gap:3px;justify-content:center}
+.rpick button{border:1px solid var(--amber-2);background:#fff;color:#8A5E08;font-size:11px;border-radius:7px;
+  padding:5px 5px;cursor:pointer;font-family:var(--sans);min-width:26px}
+.rpick button:hover{background:var(--amber-4)}
+details{margin-top:2px}
+details summary{cursor:pointer;font-size:14px;color:var(--ink-3);list-style:none;outline:none;padding:4px 0}
+details summary::-webkit-details-marker{display:none}
+details summary:hover{color:var(--amber)}
+#toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,16px);opacity:0;pointer-events:none;
+  background:rgba(28,26,23,.94);color:#fff;padding:12px 20px;border-radius:14px;font-size:15px;z-index:99;
+  transition:opacity .22s,transform .22s;backdrop-filter:blur(8px);max-width:86vw;text-align:center}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+.foot{text-align:center;color:var(--ink-3);font-size:12.5px;padding:20px 0 0}
+@media(max-width:400px){ .grid4{grid-template-columns:repeat(2,1fr);gap:14px} .masthead h1{font-size:27px} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="masthead">
+    <h1>学习节奏</h1>
+    <div class="sub" id="todayLabel"></div>
+  </div>
+
+  <!-- 回顾 -->
+  <div class="card" id="reviewCard" style="display:none">
+    <div class="ttl">
+      <span>该回顾了 <span class="n" id="revCount"></span></span>
+      <button class="ghost" id="icsBtn" style="padding:5px 11px;font-size:12.5px">加入日历</button>
+    </div>
+    <div id="revList"></div>
+    <div id="revNext"></div>
+  </div>
+
+  <!-- 录入 -->
+  <div class="card">
+    <div class="ttl"><span>今天学了什么</span></div>
+    <input type="text" id="content" autocomplete="off">
+    <div class="lab">时长</div>
+    <div class="tags" id="durTags"></div>
+    <div class="row" id="customDurRow" style="display:none;margin-top:10px">
+      <input type="number" id="customDur" min="1" max="1440"><span class="line" style="font-size:14px">分钟</span>
+    </div>
+    <div class="row" id="timeRow" style="margin-top:12px;font-size:13.5px;color:var(--ink-3)"></div>
+    <div class="lab">类型</div>
+    <div class="tags" id="typeTags"></div>
+    <div class="lab">地点</div>
+    <div class="tags" id="locTags"></div>
+    <div class="lab">状态</div>
+    <div class="tags" id="moodTags"></div>
+    <div class="lab">今天搞懂了什么</div>
+    <input type="text" id="note" autocomplete="off">
+    <button class="btn btn-main" id="saveBtn">记下来</button>
+  </div>
+
+  <!-- 概览 -->
+  <div class="card">
+    <div class="grid4" id="stats"></div>
+    <div class="line" id="summary" style="margin-top:18px"></div>
+  </div>
+
+  <!-- 台账 -->
+  <div class="card">
+    <div class="ttl">
+      <span>台账</span>
+      <span class="row" style="gap:6px">
+        <button class="ghost" id="lgToggle" style="padding:5px 11px;font-size:12.5px">回顾中</button>
+        <button class="ghost" id="csvBtn" style="padding:5px 11px;font-size:12.5px">CSV</button>
+      </span>
+    </div>
+    <div id="ledger"></div>
+  </div>
+
+  <!-- 节奏 -->
+  <div class="card">
+    <div class="seg" id="segChart">
+      <button data-v="week" class="on">七日</button>
+      <button data-v="heat">90 天</button>
+      <button data-v="radius">半径</button>
+    </div>
+    <div id="chartWrap"></div>
+  </div>
+
+  <!-- 洞察 -->
+  <div class="card">
+    <div class="seg" id="segInsight">
+      <button data-v="hour" class="on">时段</button>
+      <button data-v="place">地点</button>
+      <button data-v="week">星期</button>
+    </div>
+    <div id="insightWrap"></div>
+  </div>
+
+  <!-- 更多 -->
+  <div class="card">
+    <details id="moreBox">
+      <summary>记录 · 内容库 · 数据 ›</summary>
+      <div style="margin-top:16px">
+        <div class="ttl" style="margin-bottom:10px"><span>今天</span></div>
+        <div id="todayRecs"></div>
+        <div class="ttl" style="margin:22px 0 10px"><span>内容库</span></div>
+        <div class="tags" id="subjFilter" style="margin-bottom:12px"></div>
+        <div id="library"></div>
+        <div class="ttl" style="margin:22px 0 10px"><span>更早的记录</span></div>
+        <div id="allRecs"></div>
+        <div class="ttl" style="margin:22px 0 10px"><span>数据</span></div>
+        <div class="row">
+          <button class="ghost" id="exportBtn">导出 JSON</button>
+          <button class="ghost" id="importBtn">导入 JSON</button>
+          <input type="file" id="fileInput" accept="application/json,.json" style="display:none">
+        </div>
+        <div class="line" style="font-size:13px;color:var(--ink-3);margin-top:10px" id="dataStat"></div>
+      </div>
+    </details>
+  </div>
+
+  <div class="foot">数据存在这台设备上 · 偶尔导出一份</div>
+</div>
+<div id="toast"></div>
+
+<script>
+/* ================= 常量 ================= */
+var KEY='study-rhythm-v1';
+var TYPES=['新学','复习','做题','网课','背诵'];
+var LOCS=['家','发小家','图书馆','自习室','其他'];
+var MOODS=['顺','一般','卡'];
+var DURS=[30,60,90,120];
+/* 间隔重复：学习当天 → 第 1 / 3 / 7 / 16 / 35 天 */
+var OFFSETS=[1,3,7,16,35];
+var HOURBANDS=[
+  {k:'清晨',s:5,e:8},{k:'上午',s:8,e:12},{k:'午后',s:12,e:14},
+  {k:'下午',s:14,e:18},{k:'傍晚',s:18,e:22},{k:'深夜',s:22,e:29}
+];
+
+/* ================= 存储 ================= */
+var db={records:[],reviews:[],mastery:{}}, storageOK=true;
+function load(){
+  try{
+    var raw=localStorage.getItem(KEY);
+    if(raw){
+      var d=JSON.parse(raw);
+      db.records=Array.isArray(d.records)?d.records:[];
+      db.reviews=Array.isArray(d.reviews)?d.reviews:[];
+      db.mastery=(d.mastery&&typeof d.mastery==='object')?d.mastery:{};
+      if(d.calHour) db.calHour=d.calHour;
+    }
+  }catch(e){}
+}
+function save(){
+  try{ localStorage.setItem(KEY,JSON.stringify(db)); }
+  catch(e){ storageOK=false; notice(); toast('这次没存进浏览器，记得导出一份'); }
+}
+function checkStorage(){
+  try{ localStorage.setItem('__t','1'); localStorage.removeItem('__t'); }
+  catch(e){ storageOK=false; notice(); }
+}
+function notice(){
+  if(document.getElementById('sn')) return;
+  var n=el('<div class="card" id="sn" style="background:var(--amber-4)"><div class="line" style="font-size:14px">'+
+    '这个浏览器不让本地文件存数据，关掉页面记录会丢。用 Chrome / Edge 双击打开通常正常，或把文件放到 GitHub Pages、Vercel 上。'+
+    '</div></div>');
+  var w=document.querySelector('.wrap'); w.insertBefore(n,w.children[1]);
+}
+
+/* ================= 工具 ================= */
+function uid(){ return 'id-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8); }
+function pad(n){ return n<10?'0'+n:''+n; }
+function ymd(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+function parseYMD(s){ var p=String(s).split('-'); return new Date(+p[0],+p[1]-1,+p[2]); }
+function today(){ var d=new Date(); d.setHours(0,0,0,0); return d; }
+function todayStr(){ return ymd(today()); }
+function addDays(s,n){ var d=parseYMD(s); d.setDate(d.getDate()+n); return ymd(d); }
+function daysBetween(a,b){ return Math.round((parseYMD(b)-parseYMD(a))/86400000); }
+function md(s){ var d=parseYMD(s); return (d.getMonth()+1)+'/'+d.getDate(); }
+function hm(dt){ return pad(dt.getHours())+':'+pad(dt.getMinutes()); }
+function fmtDur(m){
+  m=Math.round(m||0);
+  if(m<60) return m+' 分';
+  var h=Math.floor(m/60),r=m%60;
+  return r? h+' 小时 '+r+' 分' : h+' 小时';
+}
+function hnum(m){ return Math.round((m||0)/6)/10; }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function el(h){ var t=document.createElement('div'); t.innerHTML=h.trim(); return t.firstChild; }
+function toast(m){
+  var t=document.getElementById('toast'); t.textContent=m; t.classList.add('show');
+  clearTimeout(toast._t); toast._t=setTimeout(function(){ t.classList.remove('show'); },2400);
+}
+function subjectOf(c){ var s=String(c||'').trim(); return s.split(/[\s·、\/\-—:：]+/)[0]||s.slice(0,4)||'未分类'; }
+function median(a){ if(!a.length) return 0; var b=a.slice().sort(function(x,y){return x-y;}),m=Math.floor(b.length/2);
+  return b.length%2? b[m] : (b[m-1]+b[m])/2; }
+function minutesByDay(){ var m={}; db.records.forEach(function(r){ m[r.date]=(m[r.date]||0)+(+r.minutes||0); }); return m; }
+function lastNDays(n){ var o=[],t=today(); for(var i=n-1;i>=0;i--){ var d=new Date(t); d.setDate(d.getDate()-i); o.push(ymd(d)); } return o; }
+function toMin(t){ var p=String(t||'').split(':'); return p.length===2? (+p[0])*60+(+p[1]) : null; }
+
+/* ================= 录入 ================= */
+var form={minutes:null,custom:false,type:null,loc:null,mood:null,start:null,end:null};
+
+function buildTags(){
+  var dw=document.getElementById('durTags');
+  DURS.forEach(function(m){
+    var b=el('<div class="tag num" data-m="'+m+'">'+(m<60? m+' 分':(m/60)+' 小时')+'</div>');
+    b.onclick=function(){ form.minutes=m; form.custom=false;
+      document.getElementById('customDurRow').style.display='none'; sync(); };
+    dw.appendChild(b);
+  });
+  var cb=el('<div class="tag">自定义</div>');
+  cb.onclick=function(){ form.custom=true; form.minutes=null;
+    document.getElementById('customDurRow').style.display='flex'; sync();
+    document.getElementById('customDur').focus(); };
+  dw.appendChild(cb);
+  mk('typeTags',TYPES,'type'); mk('locTags',LOCS,'loc'); mk('moodTags',MOODS,'mood');
+  function mk(id,list,f){
+    var w=document.getElementById(id);
+    list.forEach(function(v){
+      var b=el('<div class="tag" data-v="'+esc(v)+'">'+esc(v)+'</div>');
+      b.onclick=function(){ form[f]=(form[f]===v?null:v); sync(); };
+      w.appendChild(b);
+    });
+  }
+}
+function curMinutes(){
+  return form.custom? (parseInt(document.getElementById('customDur').value,10)||0) : (form.minutes||0);
+}
+function sync(){
+  document.querySelectorAll('#durTags .tag').forEach(function(b){
+    var m=b.getAttribute('data-m');
+    b.classList.toggle('on', m? (!form.custom && form.minutes===+m) : !!form.custom);
+  });
+  [['typeTags','type'],['locTags','loc'],['moodTags','mood']].forEach(function(p){
+    document.querySelectorAll('#'+p[0]+' .tag').forEach(function(b){
+      b.classList.toggle('on', form[p[1]]===b.getAttribute('data-v'));
+    });
+  });
+  renderTimeRow();
+}
+function autoTimes(){
+  var mins=curMinutes(), now=new Date();
+  var st=new Date(now.getTime()-mins*60000);
+  return {start:hm(st), end:hm(now)};
+}
+function renderTimeRow(){
+  var row=document.getElementById('timeRow'), mins=curMinutes();
+  if(!mins){ row.innerHTML='<span style="opacity:.75">选好时长后，这里会自动填上时间点</span>'; return; }
+  var t = (form.start&&form.end)? {start:form.start,end:form.end} : autoTimes();
+  if(form.editTime){
+    row.innerHTML='';
+    var a=el('<input type="time" value="'+t.start+'">'), b=el('<input type="time" value="'+t.end+'">');
+    row.appendChild(el('<span>时间</span>')); row.appendChild(a);
+    row.appendChild(el('<span>→</span>')); row.appendChild(b);
+    var ok=el('<button class="ghost" style="padding:6px 12px">好</button>');
+    ok.onclick=function(){ form.start=a.value; form.end=b.value; form.editTime=false; sync(); };
+    row.appendChild(ok);
+  }else{
+    row.innerHTML='<span style="font-family:var(--mono)">'+t.start+' → '+t.end+'</span>';
+    var e=el('<button class="ghost" style="padding:5px 11px;font-size:13px">改时间</button>');
+    e.onclick=function(){ form.editTime=true; form.start=t.start; form.end=t.end; sync(); };
+    row.appendChild(e);
+  }
+}
+function resetForm(){
+  document.getElementById('content').value='';
+  document.getElementById('note').value='';
+  document.getElementById('customDur').value='';
+  document.getElementById('customDurRow').style.display='none';
+  form={minutes:null,custom:false,type:null,loc:null,mood:null,start:null,end:null};
+  sync();
+}
+function addRecord(){
+  var content=document.getElementById('content').value.trim();
+  if(!content){ toast('写一句学了什么就行'); document.getElementById('content').focus(); return; }
+  var minutes=curMinutes();
+  if(!minutes||minutes<=0){ toast('选一个时长'); return; }
+  if(minutes>1440) minutes=1440;
+  var t=(form.start&&form.end)?{start:form.start,end:form.end}:autoTimes();
+  var rec={id:uid(),date:todayStr(),content:content,subject:subjectOf(content),minutes:minutes,
+    start:t.start,end:t.end,type:form.type,location:form.loc,mood:form.mood,
+    note:document.getElementById('note').value.trim(),createdAt:new Date().toISOString()};
+  db.records.push(rec);
+  var msg='记下了 · '+fmtDur(minutes);
+  if(rec.type==='新学'){
+    scheduleFirst(rec);
+    msg='记下了 · 明天('+md(addDays(rec.date,OFFSETS[0]))+')第一次回顾';
+  }
+  save(); resetForm(); renderAll(true); toast(msg);
+}
+
+/* ================= 间隔重复 ================= */
+function scheduleFirst(rec){
+  db.reviews.push({id:uid(),sourceId:rec.id,content:rec.content,dueDate:addDays(rec.date,OFFSETS[0]),
+    round:1,status:'pending',completedAt:null});
+}
+function nextGap(round,mood){
+  var next=OFFSETS[round]; if(next==null) return null;
+  var gap=next-OFFSETS[round-1];
+  if(mood==='卡') gap=Math.max(1,Math.round(gap/2));
+  if(mood==='顺') gap=Math.round(gap*1.3);
+  return gap;
+}
+function completeReview(id,mood){
+  var r=db.reviews.filter(function(x){return x.id===id;})[0]; if(!r) return;
+  r.status='done'; r.completedAt=new Date().toISOString(); r.mood=mood;
+  var gap=nextGap(r.round,mood);
+  if(gap!=null){
+    var due=addDays(todayStr(),gap);
+    db.reviews.push({id:uid(),sourceId:r.sourceId,content:r.content,dueDate:due,round:r.round+1,
+      status:'pending',completedAt:null});
+    toast('下次回顾 '+md(due)+'（'+gap+' 天后）');
+  }else{ toast('这块的回顾表走完了'); }
+  save(); renderAll();
+}
+function retire(sourceId){
+  db.reviews.forEach(function(r){ if(r.sourceId===sourceId&&r.status==='pending') r.status='retired'; });
+  save(); renderAll(); toast('好，不再提醒这块');
+}
+function renderReviews(){
+  var card=document.getElementById('reviewCard'), list=document.getElementById('revList');
+  var nextBox=document.getElementById('revNext'), t=todayStr();
+  var pending=db.reviews.filter(function(r){return r.status==='pending';});
+  var due=pending.filter(function(r){return daysBetween(r.dueDate,t)>=0;})
+    .sort(function(a,b){return a.dueDate<b.dueDate?-1:1;});
+  var soon=pending.filter(function(r){return daysBetween(r.dueDate,t)<0;})
+    .sort(function(a,b){return a.dueDate<b.dueDate?-1:1;}).slice(0,4);
+
+  if(!pending.length){ card.style.display='none'; return; }
+  card.style.display='';
+  document.getElementById('revCount').textContent = due.length? due.length+' 条' : '';
+  list.innerHTML='';
+
+  var CAP=5, shown=due.slice(0,CAP), hidden=due.length-shown.length;
+  document.getElementById('revCount').textContent = due.length? Math.min(due.length,CAP)+' 条':'';
+
+  if(!due.length){
+    list.appendChild(el('<div class="empty">今天没有要回顾的。</div>'));
+  }else{
+    shown.forEach(function(r){
+      var over=daysBetween(r.dueDate,t);
+      var when=over===0?'今天':'原定 '+md(r.dueDate);
+      var dots=OFFSETS.map(function(_,i){
+        var cls = i+1<r.round? 'done' : (i+1===r.round? 'now':'');
+        return '<span class="step '+cls+'"></span>';
+      }).join('');
+      var node=el('<div class="item"><div class="c">'+
+        '<div class="t">'+esc(r.content)+'</div>'+
+        '<div class="m">第 '+r.round+' 次 · '+when+'</div>'+
+        '<div class="steps">'+dots+'</div>'+
+        '<div class="acts">'+
+          '<button class="mini" data-m="顺">顺</button>'+
+          '<button class="mini" data-m="一般">一般</button>'+
+          '<button class="mini" data-m="卡">卡</button>'+
+          '<button class="mini" data-r="1" style="opacity:.7">熟了</button>'+
+        '</div></div></div>');
+      node.querySelectorAll('.mini').forEach(function(b){
+        b.onclick=function(){
+          if(b.getAttribute('data-r')) retire(r.sourceId);
+          else completeReview(r.id,b.getAttribute('data-m'));
+        };
+      });
+      list.appendChild(node);
+    });
+    if(hidden>0) list.appendChild(el('<div class="empty" style="font-size:13.5px;padding-top:12px">'+
+      '还有 '+hidden+' 条排在后面，清完这几条它们才会露面。一次五条就够。</div>'));
+  }
+  nextBox.innerHTML = soon.length?
+    ('<div class="line" style="font-size:13px;color:var(--ink-3);margin-top:14px;padding-top:12px;border-top:1px solid var(--sep)">接下来 · '+
+      soon.map(function(r){
+        var d=-daysBetween(r.dueDate,t);
+        return md(r.dueDate)+'（'+(d===1?'明天':d+' 天后')+'）'+esc(r.content.slice(0,10));
+      }).join(' · ')+'</div>') : '';
+}
+
+/* ================= 概览 ================= */
+function renderStats(){
+  var map=minutesByDay(), t=todayStr();
+  var d7=lastNDays(7).reduce(function(a,d){return a+(map[d]||0);},0);
+  var now=today(), ty=now.getFullYear(), tm=now.getMonth(), thisM=0, lastM=0;
+  var lm=new Date(ty,tm-1,1);
+  db.records.forEach(function(r){
+    var d=parseYMD(r.date);
+    if(d.getFullYear()===ty&&d.getMonth()===tm) thisM+=(+r.minutes||0);
+    if(d.getFullYear()===lm.getFullYear()&&d.getMonth()===lm.getMonth()) lastM+=(+r.minutes||0);
+  });
+  var all=db.records.reduce(function(a,r){return a+(+r.minutes||0);},0);
+  var cells=[['今天',map[t]||0],['近 7 天',d7],['本月',thisM],['累计',all]];
+  document.getElementById('stats').innerHTML=cells.map(function(c){
+    return '<div class="stat"><div class="k">'+hnum(c[1])+'<span class="u">h</span></div><div class="l">'+c[0]+'</div></div>';
+  }).join('');
+
+  var days7=lastNDays(7).filter(function(d){return (map[d]||0)>0;}).length;
+  var lines=[];
+  if(!db.records.length){
+    document.getElementById('summary').innerHTML='<span style="color:var(--ink-3)">今天学了什么？写一行就好。</span>';
+    return;
+  }
+  lines.push(days7? '最近 7 天学了 <b>'+days7+'</b> 天，学的那几天平均 <b>'+fmtDur(d7/days7)+'</b>。'
+                  : '最近 7 天还没有记录。今天想学点什么？');
+  if(thisM>0&&lastM>0&&thisM>lastM) lines.push('这个月已经比上个月多 <b>'+fmtDur(thisM-lastM)+'</b>。');
+  var best=bestBand();
+  if(best) lines.push('你状态最好的时段是 <b>'+best.k+'</b>（'+best.s+'–'+(best.e%24)+' 点）。');
+  document.getElementById('summary').innerHTML=lines.join('<br>');
+}
+
+/* ================= 图表 ================= */
+var chartView='week';
+function renderChart(animate){
+  var w=document.getElementById('chartWrap');
+  if(!db.records.length){ w.innerHTML='<div class="empty">记满几天之后，这里会长出你的节奏。</div>'; return; }
+  if(chartView==='week') return drawWeek(w);
+  if(chartView==='heat') return drawHeat(w);
+  return drawRadius(w,animate);
+}
+function drawWeek(wrap){
+  var map=minutesByDay(), days=lastNDays(7);
+  var vals=days.map(function(d){return map[d]||0;});
+  var ma=days.map(function(d){ var s=0; for(var i=0;i<7;i++) s+=map[addDays(d,-i)]||0; return s/7; });
+  var W=620,H=200,PL=38,PR=10,PT=12,PB=28,iw=W-PL-PR,ih=H-PT-PB;
+  var maxV=Math.max.apply(null,[60].concat(vals).concat(ma))*1.18;
+  function X(i){ return PL+i*iw/6; } function Y(v){ return PT+ih-(v/maxV)*ih; }
+  var grid='';
+  [0,maxV/2,maxV].forEach(function(v){
+    grid+='<line x1="'+PL+'" y1="'+Y(v)+'" x2="'+(W-PR)+'" y2="'+Y(v)+'" stroke="rgba(0,0,0,.06)"/>'+
+      '<text x="'+(PL-8)+'" y="'+(Y(v)+4)+'" text-anchor="end" font-size="11" fill="#9A948C" font-family="'+
+      'ui-monospace,monospace">'+Math.round(v/6)/10+'h</text>';
+  });
+  var bars=vals.map(function(v,i){ return v>0?
+    '<rect x="'+(X(i)-9)+'" y="'+Y(v)+'" width="18" height="'+(PT+ih-Y(v))+'" rx="5" fill="#F3E0B8"/>':''; }).join('');
+  var maPts=ma.map(function(v,i){return X(i)+','+Y(v);}).join(' ');
+  var dots=vals.map(function(v,i){ return '<circle cx="'+X(i)+'" cy="'+Y(v)+'" r="3.2" fill="'+(v>0?'#D0900F':'#DFE2DC')+'"/>'; }).join('');
+  var wd=['日','一','二','三','四','五','六'];
+  var lab=days.map(function(d,i){ return '<text x="'+X(i)+'" y="'+(H-8)+'" text-anchor="middle" font-size="12" fill="#9A948C">'+
+    wd[parseYMD(d).getDay()]+'</text>'; }).join('');
+  wrap.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" width="100%" height="'+H+'">'+grid+bars+
+    '<polyline points="'+maPts+'" fill="none" stroke="#D0900F" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>'+
+    dots+lab+'</svg>'+
+    '<div class="legend" style="justify-content:flex-start;gap:16px">'+
+    '<span><span style="display:inline-block;width:18px;border-top:2.5px solid #D0900F;vertical-align:middle"></span> 七日移动平均</span>'+
+    '<span><span style="display:inline-block;width:14px;height:9px;background:#F3E0B8;border-radius:3px;vertical-align:middle"></span> 当天</span></div>';
+}
+function heatColor(v,mx){
+  if(!v) return 'var(--quiet-2)';
+  var s=['#FAEBC9','#F3D89A','#E9B44C','#D0900F','#A9740A'];
+  return s[Math.min(4,Math.floor(Math.min(1,v/(mx||1))*5*0.999))];
+}
+function drawHeat(wrap){
+  var map=minutesByDay(), days=lastNDays(90);
+  var mx=Math.max.apply(null,[1].concat(days.map(function(d){return map[d]||0;})));
+  wrap.innerHTML='<div class="heat" id="heat"></div><div class="legend" id="hl"></div>';
+  var h=document.getElementById('heat'), lead=parseYMD(days[0]).getDay(), cells=[], col=null;
+  for(var i=0;i<lead;i++) cells.push(null);
+  days.forEach(function(d){cells.push(d);});
+  cells.forEach(function(d,i){
+    if(i%7===0){ col=document.createElement('div'); col.className='heatcol'; h.appendChild(col); }
+    var c=document.createElement('div'); c.className='cell';
+    if(d){ var v=map[d]||0; c.style.background=heatColor(v,mx); c.title=d+(v?' · '+fmtDur(v):''); }
+    else c.style.background='transparent';
+    col.appendChild(c);
+  });
+  h.scrollLeft=h.scrollWidth;
+  document.getElementById('hl').innerHTML='少 '+[0,mx*.2,mx*.45,mx*.7,mx].map(function(v){
+    return '<span class="cell" style="background:'+heatColor(v,mx)+'"></span>';}).join('')+' 多';
+}
+function drawRadius(wrap,animate){
+  var map=minutesByDay();
+  var d30=lastNDays(30).map(function(d){return map[d]||0;}).filter(function(v){return v>0;});
+  var d7=lastNDays(7).map(function(d){return map[d]||0;});
+  var base=median(d30), peak=Math.max.apply(null,[0].concat(lastNDays(90).map(function(d){return map[d]||0;})));
+  var avg7=d7.reduce(function(a,b){return a+b;},0)/7;
+  var R=94,rmin=24,sc=peak>0?peak:1;
+  function rad(v){ return rmin+(R-rmin)*Math.min(1,v/sc); }
+  var rB=rad(base),rP=rad(peak),rA=rad(avg7);
+  wrap.innerHTML='<div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap;justify-content:center">'+
+    '<svg viewBox="0 0 210 210" width="210" height="210">'+
+      '<circle class="grow" id="cP" cx="105" cy="105" r="'+(animate?0:rP)+'" fill="none" stroke="#E6E3DA" stroke-width="1.5" stroke-dasharray="3 5"/>'+
+      '<circle class="grow" id="cB" cx="105" cy="105" r="'+(animate?0:rB)+'" fill="#FAEBC9" stroke="#F0DCAE"/>'+
+      '<circle class="grow" id="cA" cx="105" cy="105" r="'+(animate?0:rA)+'" fill="none" stroke="#D0900F" stroke-width="2.5"/>'+
+      '<circle cx="105" cy="105" r="2.5" fill="#D0900F"/></svg>'+
+    '<div style="min-width:170px;font-size:13.5px;color:var(--ink-2);line-height:2">'+
+      '<div><span style="display:inline-block;width:20px;border-top:2.5px solid #D0900F;vertical-align:middle"></span> 近 7 天平均 '+fmtDur(avg7)+'</div>'+
+      '<div><span style="display:inline-block;width:20px;border-top:9px solid #FAEBC9;vertical-align:middle"></span> 30 天基线 '+fmtDur(base)+'</div>'+
+      '<div><span style="display:inline-block;width:20px;border-top:2px dashed #DAD5C8;vertical-align:middle"></span> 最高 '+fmtDur(peak)+'</div>'+
+      '<div style="margin-top:8px;color:var(--ink-3);font-size:13px">'+radiusWord(avg7,base)+'</div>'+
+    '</div></div>';
+  if(animate) setTimeout(function(){
+    var a=document.getElementById('cP'),b=document.getElementById('cB'),c=document.getElementById('cA');
+    if(a)a.setAttribute('r',rP); if(b)b.setAttribute('r',rB); if(c)c.setAttribute('r',rA);
+  },60);
+}
+function radiusWord(a,b){
+  if(b<=0) return '再记几天，基线就出来了。';
+  if(a>=b*1.05) return '这条线正在往外挪。';
+  if(a>=b*0.9) return '贴着基线走，稳。';
+  return '这几天收着，也是节奏。';
+}
+
+/* ================= 洞察 ================= */
+var insightView='hour';
+function bandOf(startStr){
+  var m=toMin(startStr); if(m==null) return null;
+  var h=Math.floor(m/60); if(h<5) h+=24;
+  for(var i=0;i<HOURBANDS.length;i++){ var b=HOURBANDS[i]; if(h>=b.s&&h<b.e) return b; }
+  return null;
+}
+function bandStats(){
+  var g={};
+  db.records.forEach(function(r){
+    var b=bandOf(r.start); if(!b) return;
+    var o=g[b.k]=g[b.k]||{band:b,n:0,sum:0,smooth:0,moodN:0};
+    o.n++; o.sum+=(+r.minutes||0);
+    if(r.mood){ o.moodN++; if(r.mood==='顺') o.smooth++; }
+  });
+  return HOURBANDS.map(function(b){ return g[b.k]; }).filter(Boolean);
+}
+function bestBand(){
+  var s=bandStats().filter(function(o){return o.n>=3&&o.moodN>=2;});
+  if(!s.length) return null;
+  s.sort(function(a,b){ return (b.smooth/b.moodN)-(a.smooth/a.moodN) || b.sum-a.sum; });
+  return {k:s[0].band.k,s:s[0].band.s,e:s[0].band.e};
+}
+function renderInsight(){
+  var w=document.getElementById('insightWrap');
+  if(db.records.length<3){ w.innerHTML='<div class="empty">记够几次之后，这里会告诉你：什么时间、在哪儿，你的状态更好。</div>'; return; }
+  if(insightView==='hour') return insHour(w);
+  if(insightView==='place') return insGroup(w,'location','未标地点');
+  return insWeek(w);
+}
+function insHour(w){
+  var s=bandStats();
+  if(!s.length){ w.innerHTML='<div class="empty">还没有带时间点的记录。今天记一条，时间会自动填。</div>'; return; }
+  var mxSum=Math.max.apply(null,s.map(function(o){return o.sum;}));
+  var lead='';
+  var b=bestBand();
+  var long=s.slice().sort(function(a,c){return c.sum/c.n-a.sum/a.n;})[0];
+  if(b) lead='标"顺"最多的是<b>'+b.k+'</b>（'+b.s+'–'+(b.e%24)+' 点）。';
+  if(long) lead+=(lead?' ':'')+'<b>'+long.band.k+'</b>单次坐得最久，平均 <b>'+Math.round(long.sum/long.n)+'</b> 分钟。';
+  w.innerHTML='<div class="line" style="margin-bottom:14px">'+lead+'</div><table class="tbl">'+
+    s.map(function(o){
+      var rate=o.moodN? Math.round(o.smooth/o.moodN*100):null;
+      return '<tr><td style="width:30%">'+o.band.k+'<span style="color:var(--ink-3);font-size:12px;font-family:var(--mono)"> '+o.band.s+'–'+(o.band.e%24)+'</span></td>'+
+        '<td><div class="bar" style="width:'+Math.max(4,Math.round(o.sum/mxSum*100))+'%"></div></td>'+
+        '<td class="n">'+hnum(o.sum)+'h · '+o.n+' 次'+(rate!=null?' · 顺 '+rate+'%':'')+'</td></tr>';
+    }).join('')+'</table>';
+}
+function insGroup(w,field,fallback){
+  var g={};
+  db.records.forEach(function(r){
+    var k=r[field]||fallback;
+    var o=g[k]=g[k]||{n:0,sum:0,smooth:0,moodN:0};
+    o.n++; o.sum+=(+r.minutes||0);
+    if(r.mood){ o.moodN++; if(r.mood==='顺') o.smooth++; }
+  });
+  var list=Object.keys(g).map(function(k){ var o=g[k];
+    return {name:k,n:o.n,avg:o.sum/o.n,sum:o.sum,rate:o.moodN?o.smooth/o.moodN:null}; })
+    .sort(function(a,b){return b.avg-a.avg;});
+  var named=list.filter(function(l){return l.name!==fallback&&l.n>=2;});
+  var lead = named.length>=2?
+    ('在<b>'+esc(named[0].name)+'</b>平均每次 <b>'+Math.round(named[0].avg)+'</b> 分钟，在<b>'+
+      esc(named[named.length-1].name)+'</b>是 <b>'+Math.round(named[named.length-1].avg)+'</b> 分钟。')
+    : '多标几次地点，这里会更有话说。';
+  var mx=Math.max.apply(null,list.map(function(l){return l.avg;}));
+  w.innerHTML='<div class="line" style="margin-bottom:14px">'+lead+'</div><table class="tbl">'+
+    list.map(function(l){
+      return '<tr><td style="width:30%">'+esc(l.name)+'</td>'+
+        '<td><div class="bar'+(l.name===fallback?' dim':'')+'" style="width:'+Math.max(4,Math.round(l.avg/mx*100))+'%"></div></td>'+
+        '<td class="n">'+Math.round(l.avg)+' 分/次'+(l.rate!=null?' · 顺 '+Math.round(l.rate*100)+'%':'')+'</td></tr>';
+    }).join('')+'</table>';
+}
+function insWeek(w){
+  var wd=['周日','周一','周二','周三','周四','周五','周六'], g={};
+  db.records.forEach(function(r){
+    var k=parseYMD(r.date).getDay();
+    var o=g[k]=g[k]||{n:0,sum:0,smooth:0,moodN:0};
+    o.n++; o.sum+=(+r.minutes||0);
+    if(r.mood){ o.moodN++; if(r.mood==='顺') o.smooth++; }
+  });
+  var list=[1,2,3,4,5,6,0].filter(function(k){return g[k];}).map(function(k){
+    var o=g[k]; return {name:wd[k],n:o.n,sum:o.sum,avg:o.sum/o.n,rate:o.moodN?o.smooth/o.moodN:null}; });
+  var mx=Math.max.apply(null,list.map(function(l){return l.sum;}));
+  var top=list.slice().sort(function(a,b){return b.sum-a.sum;})[0];
+  w.innerHTML='<div class="line" style="margin-bottom:14px">目前 <b>'+esc(top.name)+'</b> 的总时长最多，累计 <b>'+fmtDur(top.sum)+'</b>。</div>'+
+    '<table class="tbl">'+list.map(function(l){
+      return '<tr><td style="width:30%">'+l.name+'</td>'+
+        '<td><div class="bar" style="width:'+Math.max(4,Math.round(l.sum/mx*100))+'%"></div></td>'+
+        '<td class="n">'+hnum(l.sum)+'h · '+l.n+' 次'+(l.rate!=null?' · 顺 '+Math.round(l.rate*100)+'%':'')+'</td></tr>';
+    }).join('')+'</table>';
+}
+
+/* ================= 台账 ================= */
+var lgMode='review', lgLimit=20;
+function reviewsOf(id){
+  return db.reviews.filter(function(x){return x.sourceId===id;})
+    .sort(function(a,b){return a.round-b.round;});
+}
+function renderLedger(){
+  var wrap=document.getElementById('ledger'), t=todayStr();
+  document.getElementById('lgToggle').textContent = lgMode==='review'?'回顾中':'全部';
+
+  var rows=db.records.slice().sort(function(a,b){
+    if(a.date!==b.date) return a.date<b.date?1:-1;
+    return (b.start||'')<(a.start||'')?-1:1;
+  });
+  if(lgMode==='review') rows=rows.filter(function(r){ return reviewsOf(r.id).length>0; });
+
+  if(!rows.length){
+    wrap.innerHTML='<div class="empty">'+(lgMode==='review'
+      ? '还没有排了回顾的内容。把类型标成「新学」，回顾链会自动排上。'
+      : '还没有记录。')+'</div>';
+    return;
+  }
+  var shown=rows.slice(0,lgLimit);
+  var html='<div class="lgwrap"><table class="lg"><tr>'+
+    '<th class="l">日期</th><th class="l">内容</th>'+
+    [1,2,3,4,5].map(function(i){return '<th>'+i+' 回</th>';}).join('')+
+    '</tr>';
+
+  shown.forEach(function(r){
+    var rv=reviewsOf(r.id), retired=rv.some(function(x){return x.status==='retired';});
+    var meta=[];
+    if(r.location) meta.push(r.location);
+    if(r.type) meta.push(r.type);
+    if(r.mood) meta.push(r.mood);
+    meta.push(fmtDur(r.minutes));
+    var cells='';
+    for(var i=1;i<=5;i++){
+      var x=rv.filter(function(v){return v.round===i;})[0];
+      cells+='<td class="rc" data-cell="'+r.id+'-'+i+'">'+cellHTML(x,retired,t)+'</td>';
+    }
+    html+='<tr>'+
+      '<td class="cd"><span class="d">'+md(r.date)+'</span>'+
+        (r.start?'<span class="h">'+r.start+'–'+r.end+'</span>':'')+'</td>'+
+      '<td class="cc"><div class="t">'+esc(r.content)+'</div>'+
+        '<div class="m">'+esc(meta.join(' · '))+'</div></td>'+
+      cells+'</tr>';
+  });
+  html+='</table></div>';
+  if(rows.length>shown.length)
+    html+='<div style="margin-top:14px"><button class="ghost" id="lgMore">还有 '+(rows.length-shown.length)+' 行 · 展开</button></div>';
+  wrap.innerHTML=html;
+
+  var more=document.getElementById('lgMore');
+  if(more) more.onclick=function(){ lgLimit+=40; renderLedger(); };
+
+  wrap.querySelectorAll('.rcell.due').forEach(function(c){
+    c.onclick=function(){ pickMood(c.parentNode, c.getAttribute('data-rid')); };
+  });
+}
+function cellHTML(x,retired,t){
+  if(!x) return retired? '<span class="rcell none">—</span>' : '<span class="rcell none">·</span>';
+  if(x.status==='done'){
+    var dd=x.completedAt? md(ymd(new Date(x.completedAt))) : md(x.dueDate);
+    return '<span class="rcell done" title="'+esc(x.mood||'')+'">'+dd+' ✓</span>';
+  }
+  if(x.status==='retired') return '<span class="rcell none">熟</span>';
+  if(daysBetween(x.dueDate,t)>=0)
+    return '<span class="rcell due" data-rid="'+x.id+'" title="点一下标记完成">'+md(x.dueDate)+'</span>';
+  return '<span class="rcell soon">'+md(x.dueDate)+'</span>';
+}
+function pickMood(td,rid){
+  td.innerHTML='<div class="rpick">'+MOODS.map(function(m){
+    return '<button data-m="'+m+'">'+m+'</button>';}).join('')+'</div>';
+  td.querySelectorAll('button').forEach(function(b){
+    b.onclick=function(){ completeReview(rid,b.getAttribute('data-m')); };
+  });
+}
+function exportCSV(){
+  var head=['日期','开始','结束','分钟','内容','科目','类型','地点','状态','收获'];
+  for(var i=1;i<=5;i++) head.push(i+'回日期',i+'回状态');
+  var lines=[head.join(',')];
+  db.records.slice().sort(function(a,b){return a.date<b.date?-1:1;}).forEach(function(r){
+    var rv=reviewsOf(r.id);
+    var row=[r.date,r.start||'',r.end||'',r.minutes,r.content,r.subject||'',r.type||'',r.location||'',r.mood||'',r.note||''];
+    for(var i=1;i<=5;i++){
+      var x=rv.filter(function(v){return v.round===i;})[0];
+      row.push(x? x.dueDate:'', x? ({pending:'待回顾',done:'已完成',retired:'已熟'}[x.status]||x.status):'');
+    }
+    lines.push(row.map(function(v){
+      v=String(v==null?'':v);
+      return /[",\n]/.test(v)? '"'+v.replace(/"/g,'""')+'"' : v;
+    }).join(','));
+  });
+  var b=new Blob(['﻿'+lines.join('\n')],{type:'text/csv;charset=utf-8'});
+  var u=URL.createObjectURL(b),a=document.createElement('a');
+  a.href=u; a.download='学习台账-'+todayStr()+'.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function(){URL.revokeObjectURL(u);},1000);
+  toast('已导出 CSV · Excel 可直接打开');
+}
+
+/* ================= 日历导出（.ics） ================= */
+function icsEsc(s){ return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\n/g,'\\n'); }
+function icsStamp(){
+  var d=new Date();
+  return d.getUTCFullYear()+pad(d.getUTCMonth()+1)+pad(d.getUTCDate())+'T'+
+         pad(d.getUTCHours())+pad(d.getUTCMinutes())+pad(d.getUTCSeconds())+'Z';
+}
+function exportICS(){
+  var pending=db.reviews.filter(function(r){return r.status==='pending';})
+    .sort(function(a,b){return a.dueDate<b.dueDate?-1:1;});
+  if(!pending.length){ toast('现在没有排着的回顾'); return; }
+
+  var def=db.calHour||'20:00';
+  var t=prompt('每天几点提醒你回顾？（24 小时制）', def);
+  if(t===null) return;
+  t=String(t).trim();
+  if(!/^\d{1,2}:\d{2}$/.test(t)){ toast('时间写成 20:00 这样'); return; }
+  var hh=pad(parseInt(t.split(':')[0],10)), mm=pad(parseInt(t.split(':')[1],10));
+  db.calHour=hh+':'+mm; save();
+
+  var stamp=icsStamp(), L=[];
+  L.push('BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//学习节奏//ZH','CALSCALE:GREGORIAN','METHOD:PUBLISH');
+  pending.forEach(function(r){
+    var d=r.dueDate.replace(/-/g,'');
+    var endM=parseInt(mm,10)+20, endH=parseInt(hh,10)+Math.floor(endM/60);
+    var start=d+'T'+hh+mm+'00', end=d+'T'+pad(endH%24)+pad(endM%60)+'00';
+    var src=db.records.filter(function(x){return x.id===r.sourceId;})[0];
+    var desc='第 '+r.round+' 次回顾'+(src? ' · 初学于 '+src.date+(src.note? ' · '+src.note : '') : '');
+    L.push('BEGIN:VEVENT',
+      'UID:'+r.id+'@study-rhythm',
+      'DTSTAMP:'+stamp,
+      'DTSTART:'+start,
+      'DTEND:'+end,
+      'SUMMARY:'+icsEsc('回顾 · '+r.content),
+      'DESCRIPTION:'+icsEsc(desc),
+      'BEGIN:VALARM','TRIGGER:PT0M','ACTION:DISPLAY',
+      'DESCRIPTION:'+icsEsc('回顾 · '+r.content),
+      'END:VALARM','END:VEVENT');
+  });
+  L.push('END:VCALENDAR');
+
+  var b=new Blob([L.join('\r\n')],{type:'text/calendar;charset=utf-8'});
+  var u=URL.createObjectURL(b),a=document.createElement('a');
+  a.href=u; a.download='学习回顾-'+todayStr()+'.ics';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function(){URL.revokeObjectURL(u);},1000);
+  toast(pending.length+' 条回顾已导出 · 导入日历即可');
+}
+
+/* ================= 记录 / 内容库 ================= */
+function recNode(r,showDate){
+  var meta=[];
+  if(showDate) meta.push(md(r.date));
+  if(r.start) meta.push(r.start+'–'+r.end);
+  if(r.type) meta.push(r.type);
+  if(r.location) meta.push(r.location);
+  if(r.mood) meta.push(r.mood);
+  var nx=db.reviews.filter(function(x){return x.sourceId===r.id&&x.status==='pending';})
+    .sort(function(a,b){return a.dueDate<b.dueDate?-1:1;})[0];
+  var node=el('<div class="item">'+
+    '<div class="min">'+fmtDur(r.minutes)+'</div>'+
+    '<div class="c"><div class="t">'+esc(r.content)+'</div>'+
+      (meta.length?'<div class="m">'+esc(meta.join(' · '))+'</div>':'')+
+      (nx?'<div class="m" style="color:var(--amber)">下次回顾 '+md(nx.dueDate)+'</div>':'')+
+      (r.note?'<div class="note">'+esc(r.note)+'</div>':'')+
+    '</div><button class="del">×</button></div>');
+  node.querySelector('.del').onclick=function(){
+    if(!confirm('删掉这条记录？')) return;
+    db.records=db.records.filter(function(x){return x.id!==r.id;});
+    db.reviews=db.reviews.filter(function(x){return x.sourceId!==r.id;});
+    save(); renderAll(); toast('删了');
+  };
+  return node;
+}
+function renderRecords(){
+  var t=todayStr(), tw=document.getElementById('todayRecs'); tw.innerHTML='';
+  var td=db.records.filter(function(r){return r.date===t;});
+  if(!td.length) tw.innerHTML='<div class="empty">今天还没记。</div>';
+  else td.slice().reverse().forEach(function(r){ tw.appendChild(recNode(r,false)); });
+  var aw=document.getElementById('allRecs'); aw.innerHTML='';
+  var rest=db.records.filter(function(r){return r.date!==t;})
+    .sort(function(a,b){return a.date<b.date?1:-1;}).slice(0,60);
+  if(!rest.length) aw.innerHTML='<div class="empty">还没有更早的记录。</div>';
+  else rest.forEach(function(r){ aw.appendChild(recNode(r,true)); });
+}
+var subjFilter=null;
+function renderLibrary(){
+  var wrap=document.getElementById('library'), fw=document.getElementById('subjFilter');
+  if(!db.records.length){ fw.innerHTML=''; wrap.innerHTML='<div class="empty">学过的内容会自动汇到这里。</div>'; return; }
+  var subs={}; db.records.forEach(function(r){ subs[r.subject||subjectOf(r.content)]=1; });
+  fw.innerHTML='';
+  ['全部'].concat(Object.keys(subs).sort()).forEach(function(s){
+    var v=s==='全部'?null:s;
+    var b=el('<div class="tag'+(subjFilter===v?' on':'')+'">'+esc(s)+'</div>');
+    b.onclick=function(){ subjFilter=v; renderLibrary(); };
+    fw.appendChild(b);
+  });
+  var g={};
+  db.records.forEach(function(r){
+    var sub=r.subject||subjectOf(r.content);
+    if(subjFilter&&sub!==subjFilter) return;
+    var o=g[r.content]=g[r.content]||{content:r.content,times:0,minutes:0,last:''};
+    o.times++; o.minutes+=(+r.minutes||0); if(r.date>o.last) o.last=r.date;
+  });
+  var list=Object.keys(g).map(function(k){return g[k];}).sort(function(a,b){return a.last<b.last?1:-1;});
+  if(!list.length){ wrap.innerHTML='<div class="empty">这个科目下还没有记录。</div>'; return; }
+  wrap.innerHTML='';
+  list.forEach(function(o){
+    var ago=daysBetween(o.last,todayStr()), cur=db.mastery[o.content]||null;
+    var node=el('<div class="item"><div class="c">'+
+      '<div class="t">'+esc(o.content)+'</div>'+
+      '<div class="m">'+o.times+' 次 · '+fmtDur(o.minutes)+' · 上次 '+(ago===0?'今天':ago+' 天前')+'</div>'+
+      '<div class="acts">'+['还生','有点熟','很熟'].map(function(m){
+        return '<button class="mini'+(cur===m?' on':'')+'" data-m="'+m+'">'+m+'</button>';}).join('')+
+      '</div></div></div>');
+    node.querySelectorAll('.mini').forEach(function(b){
+      b.onclick=function(){ var m=b.getAttribute('data-m');
+        db.mastery[o.content]=(db.mastery[o.content]===m?null:m); save(); renderLibrary(); };
+    });
+    wrap.appendChild(node);
+  });
+}
+
+/* ================= 导入导出 ================= */
+function exportJSON(){
+  var p={version:2,exportedAt:new Date().toISOString(),records:db.records,reviews:db.reviews,
+    mastery:db.mastery,calHour:db.calHour||null};
+  var b=new Blob([JSON.stringify(p,null,2)],{type:'application/json'});
+  var u=URL.createObjectURL(b),a=document.createElement('a');
+  a.href=u; a.download='学习节奏-'+todayStr()+'.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function(){URL.revokeObjectURL(u);},1000);
+  toast('已导出');
+}
+function importJSON(file){
+  var fr=new FileReader();
+  fr.onload=function(){
+    try{
+      var d=JSON.parse(fr.result);
+      if(!d||!Array.isArray(d.records)) throw new Error('格式不对');
+      var merge = db.records.length ? confirm('已有 '+db.records.length+' 条记录。\n\n确定 = 合并\n取消 = 用文件覆盖全部') : false;
+      if(!merge){ db.records=d.records; db.reviews=d.reviews||[]; db.mastery=d.mastery||{}; }
+      else{
+        var h={}; db.records.forEach(function(r){h[r.id]=1;});
+        d.records.forEach(function(r){ if(!h[r.id]) db.records.push(r); });
+        var h2={}; db.reviews.forEach(function(r){h2[r.id]=1;});
+        (d.reviews||[]).forEach(function(r){ if(!h2[r.id]) db.reviews.push(r); });
+        Object.keys(d.mastery||{}).forEach(function(k){ if(!db.mastery[k]) db.mastery[k]=d.mastery[k]; });
+      }
+      save(); renderAll(true); toast('导入完成 · 共 '+db.records.length+' 条');
+    }catch(e){ alert('这个文件读不了：'+e.message); }
+  };
+  fr.readAsText(file);
+}
+
+/* ================= 入口 ================= */
+function renderAll(animate){
+  renderReviews(); renderStats(); renderLedger(); renderChart(!!animate); renderInsight();
+  renderRecords(); renderLibrary();
+  var p=db.reviews.filter(function(r){return r.status==='pending';}).length;
+  document.getElementById('dataStat').textContent=db.records.length+' 条记录 · '+p+' 条待回顾';
+}
+function bindSeg(id,cb){
+  var box=document.getElementById(id);
+  box.querySelectorAll('button').forEach(function(b){
+    b.onclick=function(){
+      box.querySelectorAll('button').forEach(function(x){x.classList.remove('on');});
+      b.classList.add('on'); cb(b.getAttribute('data-v'));
+    };
+  });
+}
+function init(){
+  load(); checkStorage();
+  var t=today(), wd=['周日','周一','周二','周三','周四','周五','周六'][t.getDay()];
+  document.getElementById('todayLabel').textContent=(t.getMonth()+1)+' 月 '+t.getDate()+' 日 · '+wd;
+  buildTags(); sync();
+  document.getElementById('saveBtn').onclick=addRecord;
+  document.getElementById('customDur').addEventListener('input',renderTimeRow);
+  document.getElementById('content').addEventListener('keydown',function(e){
+    if(e.key==='Enter'){ e.preventDefault(); document.getElementById('note').focus(); } });
+  document.getElementById('note').addEventListener('keydown',function(e){
+    if(e.key==='Enter'){ e.preventDefault(); addRecord(); } });
+  document.getElementById('customDur').addEventListener('keydown',function(e){
+    if(e.key==='Enter'){ e.preventDefault(); addRecord(); } });
+  document.getElementById('lgToggle').onclick=function(){
+    lgMode = lgMode==='review'?'all':'review'; lgLimit=20; renderLedger(); };
+  document.getElementById('csvBtn').onclick=exportCSV;
+  document.getElementById('icsBtn').onclick=exportICS;
+  document.getElementById('exportBtn').onclick=exportJSON;
+  document.getElementById('importBtn').onclick=function(){ document.getElementById('fileInput').click(); };
+  document.getElementById('fileInput').onchange=function(e){
+    if(e.target.files&&e.target.files[0]) importJSON(e.target.files[0]); e.target.value=''; };
+  bindSeg('segChart',function(v){ chartView=v; renderChart(v==='radius'); });
+  bindSeg('segInsight',function(v){ insightView=v; renderInsight(); });
+  renderAll(true);
+  // 手机上别自动弹键盘；桌面才聚焦
+  if(!/Android|iPhone|iPad|iPod/i.test(navigator.userAgent))
+    document.getElementById('content').focus({preventScroll:true});
+  // 离线缓存：只在 http(s) 下注册，本地双击打开时跳过
+  if('serviceWorker' in navigator && /^https?:$/.test(location.protocol))
+    navigator.serviceWorker.register('sw.js').catch(function(){});
+}
+init();
+</script>
+</body>
+</html>
