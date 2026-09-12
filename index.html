@@ -152,10 +152,13 @@ input[type=time]{font-family:var(--mono);font-size:16px;border:1px solid var(--s
 .day{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--sep)}
 .day:first-child{border-top:0}
 .day .when{font-size:14.5px;width:40px;flex:none;color:var(--ink-2)}
-.day .cnt2{font-family:var(--mono);font-size:13.5px;color:var(--amber);width:38px;flex:none}
-.day .cnt2.none{color:var(--ink-3)}
-.day .what{flex:1;min-width:0;font-size:14px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.day .what.none{color:var(--ink-3)}
+.day .frac{font-family:var(--mono);font-size:14px;color:var(--ink);width:48px;flex:none;letter-spacing:-.02em}
+.day .frac.none{color:var(--ink-3)}
+.day .track{flex:1;min-width:40px;height:6px;border-radius:4px;background:var(--fill);overflow:hidden}
+.day .track.none{background:transparent}
+.day .track i{display:block;height:100%;background:var(--amber-2);border-radius:4px;transition:width .5s var(--ease)}
+.day .tail{font-size:12.5px;color:var(--ink-3);flex:none;min-width:56px;text-align:right}
+.day .tail.none{color:#BDB7AC}
 .heat{display:flex;gap:3px;overflow-x:auto;padding-bottom:2px}
 .heatcol{display:flex;flex-direction:column;gap:3px}
 .cell{width:13px;height:13px;border-radius:3.5px;background:var(--quiet-2)}
@@ -476,6 +479,14 @@ function mirrorToIDB(){
 
 /* ================= 复习 ================= */
 function pendings(){ return db.reviews.filter(function(r){return r.status==='pending';}); }
+/* 某一天已经回顾掉的条数：今天看当天完成的，未来那几天看提前做掉的 */
+function doneOn(date,isToday){
+  return db.reviews.filter(function(r){
+    if(r.status==='pending') return false;
+    if(isToday) return r.completedAt && ymd(new Date(r.completedAt))===date;
+    return r.dueDate===date;
+  }).length;
+}
 /* 同一条内容只保留最靠前的那一轮，避免同一天重复出现 */
 function firstPerSource(list){
   var seen={},out=[];
@@ -557,14 +568,17 @@ function renderPlan(){
   var due=dueToday(), CAP=5;
   var d1=dueOn(addDays(t,1)), d2=dueOn(addDays(t,2));
   document.getElementById('planN').textContent = due.length? due.length+' 条待回顾':'';
-  var rows=[['今天',due],['明天',d1],['后天',d2]];
+  var rows=[['今天',t,due],['明天',addDays(t,1),d1],['后天',addDays(t,2),d2]];
   wrap.innerHTML=rows.map(function(r){
-    var list=r[1],names=list.map(function(x){return x.content;});
-    var txt = names.length? esc(names.slice(0,2).join('、'))+(names.length>2? ' 等':'') : '没有安排';
+    var day=r[1],left=r[2].length,done=doneOn(day,day===t),total=done+left;
+    var frac = total? done+' / '+total : '—';
+    var tail = !total? '没有安排' : (left? '还剩 '+left+' 条' : '清完了');
+    var pct = total? Math.round(done/total*100) : 0;
     return '<div class="day">'+
       '<div class="when">'+r[0]+'</div>'+
-      '<div class="cnt2'+(list.length?'':' none')+'">'+(list.length? list.length+' 条':'—')+'</div>'+
-      '<div class="what'+(list.length?'':' none')+'">'+txt+'</div></div>';
+      '<div class="frac'+(total?'':' none')+'">'+frac+'</div>'+
+      '<div class="track'+(total?'':' none')+'"><i style="width:'+pct+'%"></i></div>'+
+      '<div class="tail'+(total&&left?'':' none')+'">'+tail+'</div></div>';
   }).join('');
 
   var list=document.getElementById('dueList');
