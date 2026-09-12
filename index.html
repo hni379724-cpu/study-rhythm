@@ -501,12 +501,6 @@ function catchUp(){
   });
   if(changed) save();
 }
-/* 今天来不及了：挪到明天，不留痕迹 */
-function snooze(id){
-  var r=db.reviews.filter(function(x){return x.id===id;})[0]; if(!r) return;
-  r.dueDate=addDays(todayStr(),1);
-  buzz(10); save(); renderAll(); scheduleNotifications(); toast('挪到明天');
-}
 /* 某一天已经回顾掉的条数：今天看当天完成的，未来那几天看提前做掉的 */
 function doneOn(date,isToday){
   return db.reviews.filter(function(r){
@@ -626,12 +620,10 @@ function renderPlan(){
       '<div class="m">第 '+r.round+' 次 · '+(over===0?'今天':'原定 '+md(r.dueDate))+'</div>'+
       '<div class="steps">'+dots+'</div>'+
       '<div class="acts">'+MOODS.map(function(m){return '<button class="mini" data-m="'+m+'">'+m+'</button>';}).join('')+
-      '<button class="mini" data-s="1" style="opacity:.7">明天再说</button>'+
       '<button class="mini" data-r="1" style="opacity:.7">熟了</button></div></div></div>');
     node.querySelectorAll('.mini').forEach(function(b){
       b.onclick=function(){ buzz(10);
-        if(b.getAttribute('data-s')) snooze(r.id);
-        else if(b.getAttribute('data-r')) retire(r.sourceId);
+        if(b.getAttribute('data-r')) retire(r.sourceId);
         else completeReview(r.id,b.getAttribute('data-m')); };
     });
     list.appendChild(node);
