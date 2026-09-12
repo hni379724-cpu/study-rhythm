@@ -481,6 +481,32 @@ function mirrorToIDB(){
 
 /* ================= 复习 ================= */
 function pendings(){ return db.reviews.filter(function(r){return r.status==='pending';}); }
+/* 断档太久的处理：晚几天照常做；晚过一整个间隔的两倍，说明这块已经
+   忘得差不多了，把它拉回今天，后面几轮按「卡」的密度压缩重排。
+   不作废、不惩罚、不提示——只是让排期回到现实。 */
+function catchUp(){
+  var t=todayStr(),changed=false,bySrc={};
+  pendings().forEach(function(r){ (bySrc[r.sourceId]=bySrc[r.sourceId]||[]).push(r); });
+  Object.keys(bySrc).forEach(function(sid){
+    var list=bySrc[sid].sort(function(a,b){return a.round-b.round;});
+    var first=list[0],over=daysBetween(first.dueDate,t);
+    if(over<=0) return;
+    var gap=first.round>1? OFFSETS[first.round-1]-OFFSETS[first.round-2] : OFFSETS[0];
+    if(over<=gap*2) return;
+    first.dueDate=t; changed=true;
+    list.slice(1).forEach(function(x){
+      var g=OFFSETS[x.round-1]-OFFSETS[first.round-1];
+      x.dueDate=addDays(t,Math.max(x.round-first.round,Math.round(g*0.5)));
+    });
+  });
+  if(changed) save();
+}
+/* 今天来不及了：挪到明天，不留痕迹 */
+function snooze(id){
+  var r=db.reviews.filter(function(x){return x.id===id;})[0]; if(!r) return;
+  r.dueDate=addDays(todayStr(),1);
+  buzz(10); save(); renderAll(); scheduleNotifications(); toast('挪到明天');
+}
 /* 某一天已经回顾掉的条数：今天看当天完成的，未来那几天看提前做掉的 */
 function doneOn(date,isToday){
   return db.reviews.filter(function(r){
@@ -562,13 +588,15 @@ function retire(sourceId){
 
 /* ================= 今天 · 三天计划 ================= */
 function renderPlan(){
-  var wrap=document.getElementById('plan'), t=todayStr();
-  var due=dueToday(), CAP=5;
+  var wrap=document.getElementById('plan'), t=todayStr(), CAP=5;
+  var due=dueToday();
   var d1=dueOn(addDays(t,1)), d2=dueOn(addDays(t,2));
   document.getElementById('planN').textContent = due.length? due.length+' 条待回顾':'';
   var rows=[['今天',t,due],['明天',addDays(t,1),d1],['后天',addDays(t,2),d2]];
   wrap.innerHTML=rows.map(function(r){
-    var day=r[1],left=r[2].length,done=doneOn(day,day===t),total=done+left;
+    /* 今天只算浮出来的那几条：积压再多，今天的份额也就这些，不堆成一个吓人的分母 */
+    var day=r[1],raw=r[2].length,left=(day===t? Math.min(raw,CAP):raw);
+    var done=doneOn(day,day===t),total=done+left;
     var CAPB=10,boxes='';
     if(total){
       var show=Math.min(total,CAPB);
@@ -600,10 +628,13 @@ function renderPlan(){
       '<div class="m">第 '+r.round+' 次 · '+(over===0?'今天':'原定 '+md(r.dueDate))+'</div>'+
       '<div class="steps">'+dots+'</div>'+
       '<div class="acts">'+MOODS.map(function(m){return '<button class="mini" data-m="'+m+'">'+m+'</button>';}).join('')+
+      '<button class="mini" data-s="1" style="opacity:.7">明天再说</button>'+
       '<button class="mini" data-r="1" style="opacity:.7">熟了</button></div></div></div>');
     node.querySelectorAll('.mini').forEach(function(b){
       b.onclick=function(){ buzz(10);
-        if(b.getAttribute('data-r')) retire(r.sourceId); else completeReview(r.id,b.getAttribute('data-m')); };
+        if(b.getAttribute('data-s')) snooze(r.id);
+        else if(b.getAttribute('data-r')) retire(r.sourceId);
+        else completeReview(r.id,b.getAttribute('data-m')); };
     });
     list.appendChild(node);
   });
@@ -1373,7 +1404,7 @@ function bindSeg(id,cb){
 function init(){
   load();
   try{ localStorage.setItem('__t','1'); localStorage.removeItem('__t'); }catch(e){ storageOK=false; }
-  migratePlans();
+  migratePlans(); catchUp();
   var t=today(),wd=['周日','周一','周二','周三','周四','周五','周六'][t.getDay()];
   document.getElementById('todayDate').textContent=(t.getMonth()+1)+' 月 '+t.getDate()+' 日 · '+wd;
   buildTags(); sync();
