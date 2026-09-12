@@ -160,6 +160,10 @@ input[type=time]{font-family:var(--mono);font-size:16px;border:1px solid var(--s
 .cell{width:13px;height:13px;border-radius:3.5px;background:var(--quiet-2)}
 .legend{display:flex;align-items:center;gap:6px;margin-top:12px;font-size:12px;color:var(--ink-3);font-family:var(--mono)}
 .legend .cell{width:11px;height:11px}
+.chartscroll{overflow-x:auto;overflow-y:hidden;margin:0 -18px;padding:0;
+  -webkit-overflow-scrolling:touch;scrollbar-width:none}
+.chartscroll::-webkit-scrollbar{display:none}
+.chartscroll svg.chart{max-width:none;width:auto;flex:none}
 .legchip{cursor:pointer;user-select:none;padding:4px 8px;border-radius:8px;transition:opacity .2s,background .2s}
 .legchip:active{background:var(--fill)}
 .legchip.off{opacity:.34}
@@ -835,10 +839,18 @@ function renderChart(animate){
   if(chartView==='heat') return drawHeat(w);
   return drawRadius(w,animate);
 }
-/* 日课：横轴日期，左轴时长与页数，右轴压力与状态。
+/* 日课：横轴从 8/30 起逐日排到今天，左轴时长与页数，右轴压力与状态。
    没记录的日子曲线断开，不补 0。 */
-function dailySeries(n){
-  var days=lastNDays(n),by={};
+var DAILY_START='2026-08-30';
+function dailyDays(){
+  var first=DAILY_START;
+  db.records.forEach(function(r){ if(r.date<first) first=r.date; });
+  var out=[],d=first,t=todayStr(),guard=0;
+  while(d<=t && guard++<800){ out.push(d); d=addDays(d,1); }
+  return out;
+}
+function dailySeries(days){
+  var by={};
   db.records.forEach(function(r){ (by[r.date]=by[r.date]||[]).push(r); });
   return days.map(function(d){
     var rs=by[d];
@@ -855,9 +867,16 @@ function dailySeries(n){
   });
 }
 function drawDaily(wrap){
-  var N=14,S=dailySeries(N);
-  var W=640,H=228,PL=34,PR=30,PT=14,PB=30,iw=W-PL-PR,ih=H-PT-PB;
-  function X(i){ return PL+(N===1?iw/2:i*iw/(N-1)); }
+  var days=dailyDays(),S=dailySeries(days),N=days.length;
+  /* 每天固定间距，天数多了就横向滚动；天数少时拉满卡片宽度 */
+  var PL=30,PR=26,PT=14,PB=32,H=268;
+  var avail=Math.max(280,(wrap.clientWidth||340)+36);   // 通铺：把卡片左右内边距吃回来
+  /* 装得下就按可用宽度铺满；装不下（约两周以上）才按每天 24px 横向滚动 */
+  var fit=N>1? (avail-PL-PR)/(N-1) : avail;
+  var step=Math.max(24,fit);
+  var W=Math.max(avail, PL+PR+(N-1)*step);
+  var iw=W-PL-PR,ih=H-PT-PB;
+  function X(i){ return PL+(N<=1?iw/2:i*iw/(N-1)); }
   var maxL=Math.max(1,Math.max.apply(null,S.map(function(p){
     return Math.max(dailyOn.min?(p.min||0):0, dailyOn.pages?(p.pages||0):0); })));
   maxL=Math.ceil(maxL*1.15);
@@ -899,17 +918,19 @@ function drawDaily(wrap){
   var lines=path('min',1,'#CE8E12',2.5,'')+path('pages',1,'#8FA98C',2,'')+
             path('stress',2,'#B08BA5',1.8,'4 3')+path('mood',2,'#7E9BB5',1.8,'');
 
+  /* 日期刻度：挤得下就每天都标，挤不下隔天标 */
+  var every=(step>=30)?1:2;
   var labels=S.map(function(p,i){
-    if(i%3!==0&&i!==N-1) return '';
-    var dd=parseYMD(p.d);
-    return '<text x="'+X(i)+'" y="'+(H-9)+'" text-anchor="middle" font-size="10.5" fill="#9C968D">'+
-      (dd.getMonth()+1)+'/'+dd.getDate()+'</text>';
+    if(i%every!==0 && i!==N-1) return '';
+    var dd=parseYMD(p.d), studied=p.min!=null;
+    return '<text x="'+X(i)+'" y="'+(H-11)+'" text-anchor="middle" font-size="10.5" fill="'+
+      (studied?'#6B665F':'#BDB7AC')+'">'+(dd.getMonth()+1)+'/'+dd.getDate()+'</text>';
   }).join('');
 
   var LEG=[['min','时长 分','#CE8E12'],['pages','页数','#8FA98C'],
            ['stress','压力','#B08BA5'],['mood','状态','#7E9BB5']];
-  wrap.innerHTML='<svg class="chart" viewBox="0 0 '+W+' '+H+'" width="100%" height="'+H+'">'+
-    g+lines+labels+'</svg>'+
+  wrap.innerHTML='<div class="chartscroll"><svg class="chart" viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'">'+
+    g+lines+labels+'</svg></div>'+
     '<div class="legend" id="dailyLeg" style="gap:14px;flex-wrap:wrap">'+
     LEG.map(function(l){
       return '<span class="legchip'+(dailyOn[l[0]]?'':' off')+'" data-k="'+l[0]+'">'+
@@ -917,6 +938,8 @@ function drawDaily(wrap){
     }).join('')+'</div>'+
     (db.records.length<20? '<div class="empty" style="font-size:13.5px;margin-top:10px">再记一段时间，这里会看出规律。</div>':'');
 
+  var sc=wrap.querySelector('.chartscroll');
+  if(sc) sc.scrollLeft=sc.scrollWidth;          // 默认看最近这几天
   wrap.querySelectorAll('.legchip').forEach(function(c){
     c.onclick=function(){ buzz(8); var k=c.getAttribute('data-k'); dailyOn[k]=!dailyOn[k]; drawDaily(wrap); };
   });
