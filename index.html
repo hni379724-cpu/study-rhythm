@@ -239,7 +239,12 @@ details summary::-webkit-details-marker{display:none}
     </div>
 
     <div class="card">
-      <div class="ttl"><span>记一笔</span></div>
+      <div class="ttl"><span id="entryTitle">记一笔</span>
+        <button class="ghost tap" id="backfillBtn">补签</button></div>
+      <div id="backfillRow" style="display:none;margin-bottom:12px" class="row">
+        <input type="date" id="backfillDate">
+        <button class="ghost tap" id="backfillCancel">取消</button>
+      </div>
       <input type="text" id="content" autocomplete="off" enterkeyhint="next">
       <div class="lab">时长</div>
       <div class="tags" id="durTags"></div>
@@ -259,20 +264,17 @@ details summary::-webkit-details-marker{display:none}
           <div class="lab">地点</div><div class="tags" id="locTags"></div>
           <div class="lab">今天搞懂了什么</div>
           <input type="text" id="note" autocomplete="off" enterkeyhint="done">
-          <div class="rowline" style="margin-top:16px;border-top:1px solid var(--sep)">
-            <div class="grow">昨晚早睡了</div><div class="sw" id="sleepSw"><i></i></div>
+          <div class="lab">昨晚几点睡</div>
+          <div class="row" style="flex-wrap:wrap;gap:8px">
+            <div class="tags" id="sleepTags"></div>
+            <input type="time" id="sleepAt">
           </div>
-          <div class="rowline" style="border-top:1px solid var(--sep)">
+          <div class="rowline" style="margin-top:16px;border-top:1px solid var(--sep)">
             <div class="grow" id="timeRow" style="font-size:14px;color:var(--ink-3)"></div>
           </div>
         </div>
       </details>
 
-      <div class="rowline" style="border-top:1px solid var(--sep);margin-top:16px">
-        <div class="grow"><div>排回顾</div>
-          <div style="font-size:12.5px;color:var(--ink-3);margin-top:2px">按 1/3/7/16/35 天排满五轮</div></div>
-        <div class="sw on" id="planSw"><i></i></div>
-      </div>
       <button class="btn" id="saveBtn">记下来</button>
     </div>
 
@@ -400,7 +402,7 @@ function buzzOK(){ try{ if(navigator.vibrate) navigator.vibrate([12,50,18]); }ca
 
 /* ================= 存储 ================= */
 var db={records:[],reviews:[],mastery:{},notify:{on:false,time:'08:00'},
-  ics:{at:null,ids:[],daily:false}}, storageOK=true;
+  ics:{at:null,days:{},legacyIds:[]},backfill:{}}, storageOK=true;
 function load(){
   try{
     var d=JSON.parse(localStorage.getItem(KEY)||'{}');
@@ -411,6 +413,7 @@ function load(){
     if(d.ics) db.ics={at:d.ics.at||null,days:(d.ics.days&&typeof d.ics.days==='object')?d.ics.days:{},
       legacyIds:Array.isArray(d.ics.ids)?d.ics.ids:(d.ics.legacyIds||[])};
     if(d.calHour) db.calHour=d.calHour;
+    if(d.backfill&&typeof d.backfill==='object') db.backfill=d.backfill;
   }catch(e){}
 }
 function save(){
@@ -755,8 +758,31 @@ async function toggleNotif(){
 }
 
 /* ================= 录入 ================= */
+var SLEEPS=['22:30','23:00','23:30','00:00','01:00'];
+var BACKFILL_QUOTA=2;
 var form={minutes:null,custom:false,mood:null,loc:null,mat:null,stress:null,
-  sleep:false,plan:true,start:null,end:null,editTime:false};
+  sleepAt:null,start:null,end:null,editTime:false,backfill:null};
+
+/* 补签：一个月两次，补哪天由你定 */
+function monthKey(){ var d=today(); return d.getFullYear()+'-'+pad(d.getMonth()+1); }
+function backfillLeft(){ return BACKFILL_QUOTA-((db.backfill||{})[monthKey()]||0); }
+function useBackfill(){
+  db.backfill=db.backfill||{};
+  db.backfill[monthKey()]=((db.backfill[monthKey()]||0)+1);
+}
+function renderBackfillUI(){
+  var btn=document.getElementById('backfillBtn'),row=document.getElementById('backfillRow');
+  var ttl=document.getElementById('entryTitle'),left=backfillLeft();
+  if(form.backfill){
+    ttl.textContent='补 '+md(form.backfill)+' 的记录';
+    btn.style.display='none'; row.style.display='flex';
+  }else{
+    ttl.textContent='记一笔';
+    btn.style.display=''; row.style.display='none';
+    btn.textContent = left>0? '补签 '+left : '补签';
+    btn.style.opacity = left>0? '1':'.45';
+  }
+}
 function curMinutes(){ return form.custom?(parseInt(document.getElementById('customDur').value,10)||0):(form.minutes||0); }
 function buildTags(){
   var dw=document.getElementById('durTags');
@@ -772,7 +798,7 @@ function buildTags(){
     document.getElementById('customDur').focus(); };
   dw.appendChild(cb);
   mk('moodTags',MOODS,'mood'); mk('locTags',LOCS,'loc'); mk('matTags',MATERIALS,'mat');
-  mk('stressTags',[1,2,3,4,5],'stress','num');
+  mk('stressTags',[1,2,3,4,5],'stress','num'); mk('sleepTags',SLEEPS,'sleepAt','num');
   function mk(id,list,f,cls){
     var w=document.getElementById(id);
     list.forEach(function(v){
@@ -807,12 +833,13 @@ function sync(){
   document.querySelectorAll('#durTags .tag').forEach(function(b){
     var m=b.getAttribute('data-m');
     b.classList.toggle('on', m?(!form.custom&&form.minutes===+m):!!form.custom); });
-  [['moodTags','mood'],['locTags','loc'],['matTags','mat'],['stressTags','stress']].forEach(function(p){
+  [['moodTags','mood'],['locTags','loc'],['matTags','mat'],['stressTags','stress'],
+   ['sleepTags','sleepAt']].forEach(function(p){
     document.querySelectorAll('#'+p[0]+' .tag').forEach(function(b){
       b.classList.toggle('on', String(form[p[1]])===b.getAttribute('data-v')); }); });
-  document.getElementById('sleepSw').classList.toggle('on', !!form.sleep);
-  document.getElementById('planSw').classList.toggle('on', !!form.plan);
-  var filled=[form.loc,form.mat,form.stress,form.sleep?'早睡':null,
+  document.getElementById('sleepAt').value=form.sleepAt||'';
+  renderBackfillUI();
+  var filled=[form.loc,form.mat,form.stress,form.sleepAt,
     (document.getElementById('pages').value||null),
     (document.getElementById('note').value||null)].filter(Boolean).length;
   document.getElementById('moreSummary').textContent = filled? '补充 · 已填 '+filled+' 项 ›' : '补充 ›';
@@ -823,8 +850,9 @@ function resetForm(){
   document.getElementById('customDur').value=''; document.getElementById('pages').value='';
   document.getElementById('customDurRow').style.display='none';
   document.getElementById('moreFields').open=false;
+  document.getElementById('sleepAt').value='';
   form={minutes:null,custom:false,mood:null,loc:null,mat:null,stress:null,
-    sleep:false,plan:true,start:null,end:null,editTime:false};
+    sleepAt:null,start:null,end:null,editTime:false,backfill:null};
   sync();
 }
 function addRecord(){
@@ -833,18 +861,21 @@ function addRecord(){
   var minutes=curMinutes();
   if(!minutes||minutes<=0){ toast('选一个时长'); return; }
   if(minutes>1440) minutes=1440;
-  var t=(form.start&&form.end)?{start:form.start,end:form.end}:autoTimes();
+  /* 补签的那天不该按现在的钟点推算时间段，除非你自己填了 */
+  var bf=form.backfill;
+  var t=(form.start&&form.end)? {start:form.start,end:form.end}
+        : (bf? {start:null,end:null} : autoTimes());
   var pg=parseInt(document.getElementById('pages').value,10);
-  var rec={id:uid(),date:todayStr(),content:content,subject:subjectOf(content),minutes:minutes,
-    start:t.start,end:t.end,type:form.plan?'新学':null,location:form.loc,mood:form.mood,
-    pages:(pg>0?pg:null),material:form.mat,stress:form.stress?+form.stress:null,sleep:!!form.sleep,
+  var rec={id:uid(),date:bf||todayStr(),content:content,subject:subjectOf(content),minutes:minutes,
+    start:t.start,end:t.end,type:'新学',location:form.loc,mood:form.mood,
+    pages:(pg>0?pg:null),material:form.mat,stress:form.stress?+form.stress:null,
+    sleepAt:form.sleepAt||null,
     note:document.getElementById('note').value.trim(),createdAt:new Date().toISOString()};
   db.records.push(rec);
-  var msg='记下了 · '+fmtDur(minutes);
-  if(form.plan){
-    schedulePlan(rec);
-    msg='回顾排好了 · '+OFFSETS.map(function(o){return md(addDays(rec.date,o));}).join(' · ');
-  }
+  if(bf) useBackfill();
+  schedulePlan(rec);
+  var msg = bf? ('补上了 '+md(bf)+' · 本月还能补 '+backfillLeft()+' 次')
+    : ('回顾排好了 · '+OFFSETS.map(function(o){return md(addDays(rec.date,o));}).join(' · '));
   buzzOK(); save(); resetForm(); renderAll(true); scheduleNotifications(); toast(msg);
 }
 
@@ -1175,6 +1206,7 @@ function recNode(r,showDate){
   if(r.location) meta.push(r.location);
   if(r.mood) meta.push(r.mood);
   if(r.stress) meta.push('压力 '+r.stress);
+  if(r.sleepAt) meta.push(r.sleepAt+' 睡');
   var nx=reviewsOf(r.id).filter(function(x){return x.status==='pending';})[0];
   var node=el('<div class="item"><div class="min">'+fmtDur(r.minutes)+'</div><div class="c">'+
     '<div class="t">'+esc(r.content)+'</div>'+
@@ -1252,13 +1284,13 @@ function exportJSON(){
   buzz(12); toast('已导出备份');
 }
 function exportCSV(){
-  var head=['日期','开始','结束','分钟','内容','科目','页数','材料','状态','压力','早睡','地点','收获'];
+  var head=['日期','开始','结束','分钟','内容','科目','页数','材料','状态','压力','睡点','地点','收获'];
   for(var i=1;i<=5;i++) head.push(i+'回日期',i+'回状态');
   var lines=[head.join(',')];
   db.records.slice().sort(function(a,b){return a.date<b.date?-1:1;}).forEach(function(r){
     var rv=reviewsOf(r.id);
     var row=[r.date,r.start||'',r.end||'',r.minutes,r.content,r.subject||'',r.pages||'',r.material||'',
-      r.mood||'',r.stress||'',r.sleep?'是':'',r.location||'',r.note||''];
+      r.mood||'',r.stress||'',r.sleepAt||(r.sleep?'早睡':''),r.location||'',r.note||''];
     for(var i=1;i<=5;i++){
       var x=rv.filter(function(v){return v.round===i;})[0];
       row.push(x?x.dueDate:'', x?({pending:'待回顾',done:'已完成',retired:'已熟'}[x.status]||x.status):'');
@@ -1401,8 +1433,21 @@ function init(){
 
   document.getElementById('saveBtn').onclick=addRecord;
   document.getElementById('customDur').addEventListener('input',renderTimeRow);
-  document.getElementById('sleepSw').onclick=function(){ buzz(10); form.sleep=!form.sleep; sync(); };
-  document.getElementById('planSw').onclick=function(){ buzz(10); form.plan=!form.plan; sync(); };
+  document.getElementById('sleepAt').onchange=function(){ form.sleepAt=this.value||null; sync(); };
+  document.getElementById('backfillBtn').onclick=function(){
+    buzz(10);
+    if(backfillLeft()<=0){ toast('本月的两次补签用完了，下个月再来'); return; }
+    var inp=document.getElementById('backfillDate');
+    inp.max=addDays(todayStr(),-1); inp.min=addDays(todayStr(),-60);
+    inp.value=addDays(todayStr(),-1);
+    form.backfill=inp.value; sync();
+  };
+  document.getElementById('backfillDate').onchange=function(){
+    if(!this.value) return;
+    if(this.value>=todayStr()){ toast('补签只能补过去的日子'); this.value=addDays(todayStr(),-1); }
+    form.backfill=this.value; sync();
+  };
+  document.getElementById('backfillCancel').onclick=function(){ buzz(8); form.backfill=null; sync(); };
   document.getElementById('pages').addEventListener('input',sync);
   document.getElementById('note').addEventListener('input',sync);
   document.getElementById('content').addEventListener('keydown',function(e){
