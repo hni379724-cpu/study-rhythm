@@ -166,6 +166,15 @@ input[type=time]{font-family:var(--mono);font-size:16px;border:1px solid var(--s
 .cell{width:13px;height:13px;border-radius:3.5px;background:var(--quiet-2)}
 .legend{display:flex;align-items:center;gap:6px;margin-top:12px;font-size:12px;color:var(--ink-3);font-family:var(--mono)}
 .legend .cell{width:11px;height:11px}
+.dayrow{display:flex;align-items:flex-start;gap:12px;padding:10px 0;border-top:1px solid var(--sep)}
+.dayrow:first-child{border-top:0;padding-top:2px}
+.dayrow .dk{width:40px;flex:none;font-size:14.5px;color:var(--ink-2);padding-top:8px;line-height:1.2}
+.dayrow .dk span{display:block;font-size:11px;color:var(--ink-3);margin-top:2px}
+.dayrow .tags{flex:1;gap:7px}
+.dayrow .tag{padding:8px 13px}
+.dayrow input[type=time]{padding:6px 8px;font-size:14px}
+.daysum{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:14.5px;color:var(--ink-3)}
+.daysum b{font-family:var(--mono);font-weight:500;color:var(--ink);font-size:16px}
 .chartscroll{overflow-x:auto;overflow-y:hidden;margin:0 -18px;padding:0;
   -webkit-overflow-scrolling:touch;scrollbar-width:none}
 .chartscroll::-webkit-scrollbar{display:none}
@@ -239,6 +248,11 @@ details summary::-webkit-details-marker{display:none}
     </div>
 
     <div class="card">
+      <div class="ttl"><span>精神</span><button class="ghost tap" id="dayEdit" style="display:none">改</button></div>
+      <div id="dayBody"></div>
+    </div>
+
+    <div class="card">
       <div class="ttl"><span id="entryTitle">记一笔</span>
         <button class="ghost tap" id="backfillBtn">补签</button></div>
       <div id="backfillRow" style="display:none;margin-bottom:12px" class="row">
@@ -260,15 +274,9 @@ details summary::-webkit-details-marker{display:none}
           <div class="row"><input type="number" id="pages" min="1" max="9999" inputmode="numeric" style="width:110px">
             <span class="line" style="font-size:14px">页</span></div>
           <div class="lab">材料</div><div class="tags" id="matTags"></div>
-          <div class="lab">今天的压力</div><div class="tags" id="stressTags"></div>
           <div class="lab">地点</div><div class="tags" id="locTags"></div>
           <div class="lab">今天搞懂了什么</div>
           <input type="text" id="note" autocomplete="off" enterkeyhint="done">
-          <div class="lab">昨晚几点睡</div>
-          <div class="row" style="flex-wrap:wrap;gap:8px">
-            <div class="tags" id="sleepTags"></div>
-            <input type="time" id="sleepAt">
-          </div>
           <div class="rowline" style="margin-top:16px;border-top:1px solid var(--sep)">
             <div class="grow" id="timeRow" style="font-size:14px;color:var(--ink-3)"></div>
           </div>
@@ -309,7 +317,7 @@ details summary::-webkit-details-marker{display:none}
     </div>
     <div class="card">
       <div class="seg" id="segChart">
-        <button data-v="daily" class="on">日课</button><button data-v="heat">90 天</button><button data-v="radius">半径</button>
+        <button data-v="daily" class="on">日课</button><button data-v="spirit">精神</button><button data-v="heat">90 天</button><button data-v="radius">半径</button>
       </div>
       <div id="chartWrap"></div>
     </div>
@@ -402,7 +410,7 @@ function buzzOK(){ try{ if(navigator.vibrate) navigator.vibrate([12,50,18]); }ca
 
 /* ================= 存储 ================= */
 var db={records:[],reviews:[],mastery:{},notify:{on:false,time:'08:00'},
-  ics:{at:null,days:{},legacyIds:[]},backfill:{}}, storageOK=true;
+  ics:{at:null,days:{},legacyIds:[]},backfill:{},daily:{}}, storageOK=true;
 function load(){
   try{
     var d=JSON.parse(localStorage.getItem(KEY)||'{}');
@@ -414,6 +422,7 @@ function load(){
       legacyIds:Array.isArray(d.ics.ids)?d.ics.ids:(d.ics.legacyIds||[])};
     if(d.calHour) db.calHour=d.calHour;
     if(d.backfill&&typeof d.backfill==='object') db.backfill=d.backfill;
+    if(d.daily&&typeof d.daily==='object') db.daily=d.daily;
   }catch(e){}
 }
 function save(){
@@ -760,8 +769,65 @@ async function toggleNotif(){
 /* ================= 录入 ================= */
 var SLEEPS=['22:30','23:00','23:30','00:00','01:00'];
 var BACKFILL_QUOTA=2;
-var form={minutes:null,custom:false,mood:null,loc:null,mat:null,stress:null,
-  sleepAt:null,start:null,end:null,editTime:false,backfill:null};
+var form={minutes:null,custom:false,mood:null,loc:null,mat:null,
+  start:null,end:null,editTime:false,backfill:null};
+
+/* ================= 精神：一天一条，点了就存 ================= */
+/* db.daily['YYYY-MM-DD'] = {sleepAt:'23:30', release:1, energy:4, stress:3}
+   睡点记的是「昨晚」，挂在今天——它影响的是今天的精神。 */
+var dayEditing=false;
+function dayOf(d){ return (db.daily||{})[d]||{}; }
+function setDay(field,val){
+  var t=todayStr(); db.daily=db.daily||{};
+  var o=db.daily[t]=db.daily[t]||{};
+  if(o[field]===val||val===''||val==null) delete o[field]; else o[field]=val;
+  if(!Object.keys(o).length) delete db.daily[t];
+  save(); renderDay();
+  if(chartView==='spirit'||chartView==='daily') renderChart();
+}
+/* 老版本把睡点、压力挂在学习记录上，搬到当天的精神里 */
+function migrateDaily(){
+  var changed=false; db.daily=db.daily||{};
+  db.records.slice().sort(function(a,b){return a.createdAt<b.createdAt?-1:1;}).forEach(function(r){
+    if(!r.sleepAt&&!r.stress) return;
+    var o=db.daily[r.date]=db.daily[r.date]||{};
+    if(r.sleepAt&&!o.sleepAt){ o.sleepAt=r.sleepAt; changed=true; }
+    if(r.stress&&!o.stress){ o.stress=+r.stress; changed=true; }
+  });
+  if(changed) save();
+}
+function renderDay(){
+  var body=document.getElementById('dayBody'),edit=document.getElementById('dayEdit');
+  var o=dayOf(todayStr());
+  var full=o.sleepAt&&o.release!=null&&o.energy&&o.stress;
+  if(full&&!dayEditing){
+    body.innerHTML='<div class="daysum">'+
+      '<span><b>'+esc(o.sleepAt)+'</b> 睡</span><span>释放 <b>'+o.release+'</b></span>'+
+      '<span>精神 <b>'+o.energy+'</b></span><span>压力 <b>'+o.stress+'</b></span></div>';
+    edit.style.display=''; edit.textContent='改';
+    return;
+  }
+  edit.style.display=full?'':'none'; edit.textContent='好';
+  function chips(field,list,fmt){
+    return list.map(function(v){
+      return '<div class="tag num'+(o[field]===v?' on':'')+'" data-f="'+field+'" data-v="'+v+'">'+(fmt?fmt(v):v)+'</div>';
+    }).join('');
+  }
+  body.innerHTML=
+    '<div class="dayrow"><div class="dk">睡点<span>昨晚</span></div><div class="tags">'+chips('sleepAt',SLEEPS)+
+      '<input type="time" id="daySleep" value="'+(o.sleepAt||'')+'"></div></div>'+
+    '<div class="dayrow"><div class="dk">释放</div><div class="tags">'+chips('release',[0,1,2,3,4])+'</div></div>'+
+    '<div class="dayrow"><div class="dk">精神</div><div class="tags">'+chips('energy',[1,2,3,4,5])+'</div></div>'+
+    '<div class="dayrow"><div class="dk">压力</div><div class="tags">'+chips('stress',[1,2,3,4,5])+'</div></div>';
+  body.querySelectorAll('.tag').forEach(function(b){
+    b.onclick=function(){
+      buzz(8);
+      var f=b.getAttribute('data-f'),v=b.getAttribute('data-v');
+      setDay(f, f==='sleepAt'? v : +v);
+    };
+  });
+  document.getElementById('daySleep').onchange=function(){ setDay('sleepAt',this.value||null); };
+}
 
 /* 补签：一个月两次，补哪天由你定 */
 function monthKey(){ var d=today(); return d.getFullYear()+'-'+pad(d.getMonth()+1); }
@@ -798,7 +864,6 @@ function buildTags(){
     document.getElementById('customDur').focus(); };
   dw.appendChild(cb);
   mk('moodTags',MOODS,'mood'); mk('locTags',LOCS,'loc'); mk('matTags',MATERIALS,'mat');
-  mk('stressTags',[1,2,3,4,5],'stress','num'); mk('sleepTags',SLEEPS,'sleepAt','num');
   function mk(id,list,f,cls){
     var w=document.getElementById(id);
     list.forEach(function(v){
@@ -833,13 +898,11 @@ function sync(){
   document.querySelectorAll('#durTags .tag').forEach(function(b){
     var m=b.getAttribute('data-m');
     b.classList.toggle('on', m?(!form.custom&&form.minutes===+m):!!form.custom); });
-  [['moodTags','mood'],['locTags','loc'],['matTags','mat'],['stressTags','stress'],
-   ['sleepTags','sleepAt']].forEach(function(p){
+  [['moodTags','mood'],['locTags','loc'],['matTags','mat']].forEach(function(p){
     document.querySelectorAll('#'+p[0]+' .tag').forEach(function(b){
       b.classList.toggle('on', String(form[p[1]])===b.getAttribute('data-v')); }); });
-  document.getElementById('sleepAt').value=form.sleepAt||'';
   renderBackfillUI();
-  var filled=[form.loc,form.mat,form.stress,form.sleepAt,
+  var filled=[form.loc,form.mat,
     (document.getElementById('pages').value||null),
     (document.getElementById('note').value||null)].filter(Boolean).length;
   document.getElementById('moreSummary').textContent = filled? '补充 · 已填 '+filled+' 项 ›' : '补充 ›';
@@ -850,9 +913,8 @@ function resetForm(){
   document.getElementById('customDur').value=''; document.getElementById('pages').value='';
   document.getElementById('customDurRow').style.display='none';
   document.getElementById('moreFields').open=false;
-  document.getElementById('sleepAt').value='';
-  form={minutes:null,custom:false,mood:null,loc:null,mat:null,stress:null,
-    sleepAt:null,start:null,end:null,editTime:false,backfill:null};
+  form={minutes:null,custom:false,mood:null,loc:null,mat:null,
+    start:null,end:null,editTime:false,backfill:null};
   sync();
 }
 function addRecord(){
@@ -868,8 +930,7 @@ function addRecord(){
   var pg=parseInt(document.getElementById('pages').value,10);
   var rec={id:uid(),date:bf||todayStr(),content:content,subject:subjectOf(content),minutes:minutes,
     start:t.start,end:t.end,type:'新学',location:form.loc,mood:form.mood,
-    pages:(pg>0?pg:null),material:form.mat,stress:form.stress?+form.stress:null,
-    sleepAt:form.sleepAt||null,
+    pages:(pg>0?pg:null),material:form.mat,
     note:document.getElementById('note').value.trim(),createdAt:new Date().toISOString()};
   db.records.push(rec);
   if(bf) useBackfill();
@@ -906,6 +967,7 @@ var chartView='daily';
 var dailyOn={min:true,pages:true,stress:true,mood:true};
 function renderChart(animate){
   var w=document.getElementById('chartWrap');
+  if(chartView==='spirit') return drawSpirit(w);
   if(!db.records.length){ w.innerHTML='<div class="empty">记满几天，这里会长出你的节奏。</div>'; return; }
   if(chartView==='daily') return drawDaily(w);
   if(chartView==='heat') return drawHeat(w);
@@ -917,6 +979,7 @@ var DAILY_START='2026-08-30';
 function dailyDays(){
   var first=DAILY_START;
   db.records.forEach(function(r){ if(r.date<first) first=r.date; });
+  Object.keys(db.daily||{}).forEach(function(k){ if(k<first) first=k; });
   var out=[],d=first,t=todayStr(),guard=0;
   while(d<=t && guard++<800){ out.push(d); d=addDays(d,1); }
   return out;
@@ -934,6 +997,7 @@ function dailySeries(days){
       if(rs[i].stress>0) st=rs[i].stress;
       if(rs[i].mood&&MOODVAL[rs[i].mood]) mv.push(MOODVAL[rs[i].mood]);
     }
+    if(dayOf(d).stress) st=dayOf(d).stress;
     return {d:d,min:min||null,pages:hasPage?pages:null,stress:st,
       mood:mv.length? mv.reduce(function(a,b){return a+b;},0)/mv.length : null};
   });
@@ -1015,6 +1079,73 @@ function drawDaily(wrap){
   wrap.querySelectorAll('.legchip').forEach(function(c){
     c.onclick=function(){ buzz(8); var k=c.getAttribute('data-k'); dailyOn[k]=!dailyOn[k]; drawDaily(wrap); };
   });
+}
+/* 精神：三条上下对齐的带子，共用一条日期轴。
+   竖着看一列就是同一天：昨晚几点睡 → 今天释放几次 → 今天精神几分。 */
+function sleepMin(s){
+  var m=toMin(s); if(m==null) return null;
+  if(m<12*60) m+=24*60;                 // 凌晨算作前一晚的延续
+  return Math.max(21*60,Math.min(27*60,m));   // 21:00 – 03:00
+}
+function drawSpirit(wrap){
+  var keys=Object.keys(db.daily||{}).filter(function(k){ return Object.keys(db.daily[k]).length; });
+  if(!keys.length){
+    wrap.innerHTML='<div class="empty">在「今天」页的精神卡片里点几下，这里就开始有东西了。</div>'; return;
+  }
+  var days=dailyDays(),N=days.length;
+  var PL=46,PR=14,H=312;
+  var avail=Math.max(280,(wrap.clientWidth||340)+36);
+  var fit=N>1?(avail-PL-PR)/(N-1):avail, step=Math.max(24,fit);
+  var W=Math.max(avail,PL+PR+(N-1)*step), iw=W-PL-PR;
+  function X(i){ return PL+(N<=1?iw/2:i*iw/(N-1)); }
+
+  var A={top:14,h:100}, B={top:140,h:74}, C={top:240,h:40};
+  var yE=function(v){ return A.top+A.h-(v-1)/4*A.h; };                    // 精神 1–5
+  var yS=function(m){ return B.top+(m-21*60)/(6*60)*B.h; };                // 睡点：越晚越靠下
+  var S=days.map(function(d){ var o=dayOf(d);
+    return {d:d,e:o.energy||null,s:o.sleepAt?sleepMin(o.sleepAt):null,r:(o.release!=null?o.release:null)}; });
+  var maxR=Math.max(3,Math.max.apply(null,S.map(function(p){return p.r||0;})));
+  var yR=function(v){ return C.top+C.h-(v/maxR)*C.h; };
+
+  var g='';
+  function bandLabel(txt,top){ return '<text x="4" y="'+(top+11)+'" font-size="11.5" fill="#6B665F" font-weight="600">'+txt+'</text>'; }
+  function hline(y,dim){ return '<line x1="'+PL+'" y1="'+y+'" x2="'+(W-PR)+'" y2="'+y+'" stroke="rgba(0,0,0,'+(dim?'.045':'.08')+')"/>'; }
+  function tick(y,txt){ return '<text x="'+(PL-6)+'" y="'+(y+3.5)+'" text-anchor="end" font-size="10" fill="#A9A396">'+txt+'</text>'; }
+  g+=bandLabel('精神',A.top)+hline(yE(1))+hline(yE(3),1)+hline(yE(5),1)+tick(yE(3),'3')+tick(yE(5),'5');
+  g+=bandLabel('睡点',B.top)+hline(yS(22*60),1)+hline(yS(24*60),1)+hline(yS(26*60),1)+
+     tick(yS(22*60),'22')+tick(yS(24*60),'0')+tick(yS(26*60),'2');
+  g+=bandLabel('释放',C.top)+hline(yR(0));
+
+  function line(key,yf,color,w){
+    var segs=[],cur=[];
+    S.forEach(function(p,i){ var v=p[key];
+      if(v==null){ if(cur.length) segs.push(cur); cur=[]; return; }
+      cur.push(X(i)+','+yf(v)); });
+    if(cur.length) segs.push(cur);
+    return segs.map(function(sg){ return sg.length>1?
+      '<polyline points="'+sg.join(' ')+'" fill="none" stroke="'+color+'" stroke-width="'+w+'" stroke-linejoin="round" stroke-linecap="round"/>':''; }).join('')+
+      S.map(function(p,i){ return p[key]==null?'':'<circle cx="'+X(i)+'" cy="'+yf(p[key])+'" r="3" fill="'+color+'"/>'; }).join('');
+  }
+  var bw=Math.max(5,Math.min(13,step*0.45));
+  var bars=S.map(function(p,i){
+    if(p.r==null) return '';
+    if(p.r===0) return '<circle cx="'+X(i)+'" cy="'+yR(0)+'" r="2.6" fill="none" stroke="#B08BA5" stroke-width="1.3"/>';
+    return '<rect x="'+(X(i)-bw/2)+'" y="'+yR(p.r)+'" width="'+bw+'" height="'+(yR(0)-yR(p.r))+'" rx="3" fill="#C9A9BE"/>'+
+      '<text x="'+X(i)+'" y="'+(yR(p.r)-3)+'" text-anchor="middle" font-size="9.5" fill="#9C8494">'+p.r+'</text>';
+  }).join('');
+
+  var every=(step>=30)?1:2;
+  var labels=S.map(function(p,i){
+    if(i%every!==0&&i!==N-1) return '';
+    var dd=parseYMD(p.d),has=p.e!=null||p.s!=null||p.r!=null;
+    return '<text x="'+X(i)+'" y="'+(H-8)+'" text-anchor="middle" font-size="10.5" fill="'+(has?'#6B665F':'#BDB7AC')+'">'+
+      (dd.getMonth()+1)+'/'+dd.getDate()+'</text>';
+  }).join('');
+
+  wrap.innerHTML='<div class="chartscroll"><svg class="chart" viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'">'+
+    g+line('e',yE,'#CE8E12',2.5)+line('s',yS,'#7E9BB5',2)+bars+labels+'</svg></div>'+
+    (keys.length<20?'<div class="empty" style="font-size:13.5px;margin-top:10px">再记一段时间，这里会看出规律。</div>':'');
+  var sc=wrap.querySelector('.chartscroll'); if(sc) sc.scrollLeft=sc.scrollWidth;
 }
 function heatColor(v,mx){ if(!v) return 'var(--quiet-2)';
   var s=['#FAEBC9','#F3D89A','#E9B44C','#CE8E12','#A9740A'];
@@ -1278,19 +1409,22 @@ function download(blob,name){
   setTimeout(function(){URL.revokeObjectURL(u);},1000);
 }
 function exportJSON(){
-  download(new Blob([JSON.stringify({version:3,exportedAt:new Date().toISOString(),records:db.records,
-    reviews:db.reviews,mastery:db.mastery,notify:db.notify,calHour:db.calHour||null},null,2)],
+  download(new Blob([JSON.stringify({version:4,exportedAt:new Date().toISOString(),records:db.records,
+    reviews:db.reviews,mastery:db.mastery,notify:db.notify,calHour:db.calHour||null,
+    daily:db.daily||{},backfill:db.backfill||{}},null,2)],
     {type:'application/json'}),'学习节奏-'+todayStr()+'.json');
   buzz(12); toast('已导出备份');
 }
 function exportCSV(){
-  var head=['日期','开始','结束','分钟','内容','科目','页数','材料','状态','压力','睡点','地点','收获'];
+  var head=['日期','开始','结束','分钟','内容','科目','页数','材料','状态','地点','收获',
+    '睡点','释放','精神','压力'];
   for(var i=1;i<=5;i++) head.push(i+'回日期',i+'回状态');
   var lines=[head.join(',')];
   db.records.slice().sort(function(a,b){return a.date<b.date?-1:1;}).forEach(function(r){
-    var rv=reviewsOf(r.id);
+    var rv=reviewsOf(r.id),o=dayOf(r.date);
     var row=[r.date,r.start||'',r.end||'',r.minutes,r.content,r.subject||'',r.pages||'',r.material||'',
-      r.mood||'',r.stress||'',r.sleepAt||(r.sleep?'早睡':''),r.location||'',r.note||''];
+      r.mood||'',r.location||'',r.note||'',
+      o.sleepAt||r.sleepAt||(r.sleep?'早睡':''),(o.release!=null?o.release:''),o.energy||'',o.stress||r.stress||''];
     for(var i=1;i<=5;i++){
       var x=rv.filter(function(v){return v.round===i;})[0];
       row.push(x?x.dueDate:'', x?({pending:'待回顾',done:'已完成',retired:'已熟'}[x.status]||x.status):'');
@@ -1386,13 +1520,17 @@ function importJSON(file){
       var d=JSON.parse(fr.result);
       if(!d||!Array.isArray(d.records)) throw new Error('格式不对');
       var merge=db.records.length? confirm('已有 '+db.records.length+' 条记录。\n\n确定 = 合并\n取消 = 用文件覆盖全部'):false;
-      if(!merge){ db.records=d.records; db.reviews=d.reviews||[]; db.mastery=d.mastery||{}; }
+      if(!merge){ db.records=d.records; db.reviews=d.reviews||[]; db.mastery=d.mastery||{};
+        db.daily=d.daily||{}; if(d.backfill) db.backfill=d.backfill; }
       else{
         var h={}; db.records.forEach(function(r){h[r.id]=1;});
         d.records.forEach(function(r){ if(!h[r.id]) db.records.push(r); });
         var h2={}; db.reviews.forEach(function(r){h2[r.id]=1;});
         (d.reviews||[]).forEach(function(r){ if(!h2[r.id]) db.reviews.push(r); });
         Object.keys(d.mastery||{}).forEach(function(k){ if(!db.mastery[k]) db.mastery[k]=d.mastery[k]; });
+        db.daily=db.daily||{};
+        Object.keys(d.daily||{}).forEach(function(k){
+          db.daily[k]=Object.assign({}, d.daily[k], db.daily[k]||{}); });
       }
       save(); renderAll(true); scheduleNotifications(); buzzOK(); toast('导入完成 · 共 '+db.records.length+' 条');
     }catch(e){ alert('这个文件读不了：'+e.message); }
@@ -1410,7 +1548,7 @@ function go(v){
   if(v==='data') renderChart(chartView==='radius');
 }
 function renderAll(animate){
-  renderPlan(); renderStats(); renderLedger(); renderChart(!!animate&&chartView==='radius');
+  renderPlan(); renderDay(); renderStats(); renderLedger(); renderChart(!!animate&&chartView==='radius');
   renderInsight(); renderRecords(); renderLibrary(); renderNotifUI();
   document.getElementById('dataStat').textContent=
     db.records.length+' 条记录 · '+pendings().length+' 条待回顾 · '+(storageOK?'本地存储正常':'本地存储不可用');
@@ -1426,14 +1564,14 @@ function bindSeg(id,cb){
 function init(){
   load();
   try{ localStorage.setItem('__t','1'); localStorage.removeItem('__t'); }catch(e){ storageOK=false; }
-  migratePlans(); catchUp();
+  migratePlans(); migrateDaily(); catchUp();
   var t=today(),wd=['周日','周一','周二','周三','周四','周五','周六'][t.getDay()];
   document.getElementById('todayDate').textContent=(t.getMonth()+1)+' 月 '+t.getDate()+' 日 · '+wd;
   buildTags(); sync();
 
   document.getElementById('saveBtn').onclick=addRecord;
   document.getElementById('customDur').addEventListener('input',renderTimeRow);
-  document.getElementById('sleepAt').onchange=function(){ form.sleepAt=this.value||null; sync(); };
+  document.getElementById('dayEdit').onclick=function(){ buzz(8); dayEditing=!dayEditing; renderDay(); };
   document.getElementById('backfillBtn').onclick=function(){
     buzz(10);
     if(backfillLeft()<=0){ toast('本月的两次补签用完了，下个月再来'); return; }
