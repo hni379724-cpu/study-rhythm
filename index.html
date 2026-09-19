@@ -169,6 +169,17 @@ input[type=time]{font-family:var(--mono);font-size:16px;border:1px solid var(--s
 .frow{display:flex;align-items:center;gap:12px;margin-top:16px;flex-wrap:wrap}
 .frow .fk{width:30px;flex:none;font-size:12.5px;color:var(--ink-3)}
 .frow .tags{flex:1;min-width:0}
+.inscap{font-size:12px;color:var(--ink-3);margin-bottom:4px}
+.insrow{padding:11px 0;border-top:1px solid var(--sep)}
+.insrow:nth-of-type(1){border-top:0}
+.insrow.dim{opacity:.55}
+.insrow .top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:15px}
+.insrow .top .sub{font-family:var(--mono);font-size:11.5px;color:var(--ink-3)}
+.insrow .top .n{font-family:var(--mono);font-size:12.5px;color:var(--ink-3);white-space:nowrap}
+.insrow .bot{display:flex;align-items:center;gap:10px;margin-top:7px}
+.insrow .track{flex:1;height:7px;border-radius:4px;background:var(--fill);overflow:hidden}
+.insrow .track i{display:block;height:100%;border-radius:4px;background:var(--amber-2)}
+.insrow .mc{font-size:12px;color:var(--ink-3);white-space:nowrap}
 .gotline{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:9px}
 .gotn{font-family:var(--mono);font-size:13px;color:var(--amber);font-weight:600;margin-right:2px}
 .gotchip{font-size:12.5px;color:var(--ink-2);background:var(--amber-4);border-radius:8px;padding:4px 9px;
@@ -1279,76 +1290,83 @@ var insightView='hour';
 function bandOf(s){ var m=toMin(s); if(m==null) return null;
   var h=Math.floor(m/60); if(h<5) h+=24;
   for(var i=0;i<HOURBANDS.length;i++){ var b=HOURBANDS[i]; if(h>=b.s&&h<b.e) return b; } return null; }
-function bandStats(){
+/* 时段 / 地点 / 星期 共用一套口径：
+   - 状态分 = 顺3、一般2、卡1 的平均（一般和卡不再被当成一样）
+   - 表格里的长条就是状态分；次数、平均分钟、顺/一般/卡 的个数都写在行里
+   - 结论只从表格里看得见的数字来，不偷偷过滤；样本少就直说 */
+function groupStats(keyOf,order){
   var g={};
-  db.records.forEach(function(r){ var b=bandOf(r.start); if(!b) return;
-    var o=g[b.k]=g[b.k]||{band:b,n:0,sum:0,smooth:0,moodN:0};
+  db.records.forEach(function(r){
+    var k=keyOf(r); if(k==null) return;
+    var o=g[k]=g[k]||{k:k,n:0,sum:0,moodN:0,score:0,c:{'顺':0,'一般':0,'卡':0}};
     o.n++; o.sum+=(+r.minutes||0);
-    if(r.mood){ o.moodN++; if(r.mood==='顺') o.smooth++; } });
-  return HOURBANDS.map(function(b){return g[b.k];}).filter(Boolean);
+    if(r.mood&&MOODVAL[r.mood]){ o.moodN++; o.score+=MOODVAL[r.mood]; o.c[r.mood]++; }
+  });
+  var keys=order? order.filter(function(k){return g[k];}) : Object.keys(g);
+  Object.keys(g).forEach(function(k){ if(keys.indexOf(k)<0) keys.push(k); });
+  return keys.map(function(k){ var o=g[k];
+    o.avgMin=o.sum/o.n; o.avgScore=o.moodN? o.score/o.moodN : null; return o; });
 }
-function bestBand(){
-  var s=bandStats().filter(function(o){return o.n>=3&&o.moodN>=2;});
+function pickBest(list){
+  var s=list.filter(function(o){return o.avgScore!=null;});
   if(!s.length) return null;
-  s.sort(function(a,b){ return (b.smooth/b.moodN)-(a.smooth/a.moodN)||b.sum-a.sum; });
-  return {k:s[0].band.k,s:s[0].band.s,e:s[0].band.e};
+  s.sort(function(a,b){ return (b.avgScore-a.avgScore)||(b.moodN-a.moodN); });
+  return s[0];
+}
+function pickLongest(list){
+  if(!list.length) return null;
+  return list.slice().sort(function(a,b){ return (b.avgMin-a.avgMin)||(b.n-a.n); })[0];
+}
+function moodCounts(o){ return '顺 '+o.c['顺']+' · 一般 '+o.c['一般']+' · 卡 '+o.c['卡']; }
+function thinNote(n){ return n<3? '<span style="color:var(--ink-3)">（才 '+n+' 次，还不稳）</span>' : ''; }
+function hourKey(r){ var b=bandOf(r.start); return b? b.k : null; }
+function bandLabelOf(k){ var b=HOURBANDS.filter(function(x){return x.k===k;})[0];
+  return b? k+'<span class="sub"> '+b.s+'–'+(b.e%24)+'</span>' : esc(k); }
+/* 概览里那句「状态最好的时段」只在至少 3 次时才说，口径同上 */
+function bestBand(){
+  var b=pickBest(groupStats(hourKey,HOURBANDS.map(function(x){return x.k;})));
+  if(!b||b.moodN<3) return null;
+  var band=HOURBANDS.filter(function(x){return x.k===b.k;})[0];
+  return {k:band.k,s:band.s,e:band.e};
 }
 function renderInsight(){
   var w=document.getElementById('insightWrap');
   if(db.records.length<3){ w.innerHTML='<div class="empty">记够几次，这里会告诉你：什么时间、在哪儿，你的状态更好。</div>'; return; }
-  if(insightView==='hour') return insHour(w);
-  if(insightView==='place') return insGroup(w,'location','未标地点');
-  return insWeek(w);
+  var WD=['周日','周一','周二','周三','周四','周五','周六'];
+  if(insightView==='hour'){
+    var noTime=db.records.filter(function(r){return !bandOf(r.start);}).length;
+    return drawInsight(w, groupStats(hourKey,HOURBANDS.map(function(b){return b.k;})), {
+      what:'时段', label:bandLabelOf,
+      empty:'还没有带时间点的记录。',
+      foot: noTime? noTime+' 条没有时间点（多半是补签），没算进来。' : '' });
+  }
+  if(insightView==='place'){
+    var FB='未标地点';
+    return drawInsight(w, groupStats(function(r){return r.location||FB;}, LOCS.concat([FB])), {
+      what:'地点', label:esc, skip:FB, empty:'还没有记录。' });
+  }
+  return drawInsight(w, groupStats(function(r){return WD[parseYMD(r.date).getDay()];},
+    ['周一','周二','周三','周四','周五','周六','周日']), { what:'星期', label:esc, empty:'还没有记录。' });
 }
-function insHour(w){
-  var s=bandStats();
-  if(!s.length){ w.innerHTML='<div class="empty">还没有带时间点的记录。</div>'; return; }
-  var mx=Math.max.apply(null,s.map(function(o){return o.sum;}));
-  var b=bestBand(),long=s.slice().sort(function(a,c){return c.sum/c.n-a.sum/a.n;})[0],lead='';
-  if(b) lead='标"顺"最多的是<b>'+b.k+'</b>（'+b.s+'–'+(b.e%24)+' 点）。';
-  if(long) lead+=(lead?' ':'')+'<b>'+long.band.k+'</b>单次坐得最久，平均 <b>'+Math.round(long.sum/long.n)+'</b> 分钟。';
-  w.innerHTML='<div class="line" style="margin-bottom:14px">'+lead+'</div><table class="tbl">'+
-    s.map(function(o){ var rate=o.moodN?Math.round(o.smooth/o.moodN*100):null;
-      return '<tr><td style="width:30%">'+o.band.k+'<span style="color:var(--ink-3);font-size:12px;font-family:var(--mono)"> '+
-        o.band.s+'–'+(o.band.e%24)+'</span></td><td><div class="bar" style="width:'+Math.max(4,Math.round(o.sum/mx*100))+
-        '%"></div></td><td class="n">'+hnum(o.sum)+'h · '+o.n+' 次'+(rate!=null?' · 顺 '+rate+'%':'')+'</td></tr>';
-    }).join('')+'</table>';
-}
-function insGroup(w,field,fallback){
-  var g={};
-  db.records.forEach(function(r){ var k=r[field]||fallback;
-    var o=g[k]=g[k]||{n:0,sum:0,smooth:0,moodN:0};
-    o.n++; o.sum+=(+r.minutes||0);
-    if(r.mood){ o.moodN++; if(r.mood==='顺') o.smooth++; } });
-  var list=Object.keys(g).map(function(k){var o=g[k];
-    return {name:k,n:o.n,avg:o.sum/o.n,sum:o.sum,rate:o.moodN?o.smooth/o.moodN:null};})
-    .sort(function(a,b){return b.avg-a.avg;});
-  var named=list.filter(function(l){return l.name!==fallback&&l.n>=2;});
-  var lead=named.length>=2? ('在<b>'+esc(named[0].name)+'</b>平均每次 <b>'+Math.round(named[0].avg)+
-    '</b> 分钟，在<b>'+esc(named[named.length-1].name)+'</b>是 <b>'+Math.round(named[named.length-1].avg)+'</b> 分钟。')
-    : '多标几次地点，这里会更有话说。';
-  var mx=Math.max.apply(null,list.map(function(l){return l.avg;}));
-  w.innerHTML='<div class="line" style="margin-bottom:14px">'+lead+'</div><table class="tbl">'+
-    list.map(function(l){ return '<tr><td style="width:30%">'+esc(l.name)+'</td><td><div class="bar'+
-      (l.name===fallback?' dim':'')+'" style="width:'+Math.max(4,Math.round(l.avg/mx*100))+'%"></div></td>'+
-      '<td class="n">'+Math.round(l.avg)+' 分/次'+(l.rate!=null?' · 顺 '+Math.round(l.rate*100)+'%':'')+'</td></tr>';
-    }).join('')+'</table>';
-}
-function insWeek(w){
-  var wd=['周日','周一','周二','周三','周四','周五','周六'],g={};
-  db.records.forEach(function(r){ var k=parseYMD(r.date).getDay();
-    var o=g[k]=g[k]||{n:0,sum:0,smooth:0,moodN:0};
-    o.n++; o.sum+=(+r.minutes||0);
-    if(r.mood){ o.moodN++; if(r.mood==='顺') o.smooth++; } });
-  var list=[1,2,3,4,5,6,0].filter(function(k){return g[k];}).map(function(k){ var o=g[k];
-    return {name:wd[k],n:o.n,sum:o.sum,rate:o.moodN?o.smooth/o.moodN:null}; });
-  var mx=Math.max.apply(null,list.map(function(l){return l.sum;}));
-  var top=list.slice().sort(function(a,b){return b.sum-a.sum;})[0];
-  w.innerHTML='<div class="line" style="margin-bottom:14px">目前 <b>'+esc(top.name)+
-    '</b> 的总时长最多，累计 <b>'+fmtDur(top.sum)+'</b>。</div><table class="tbl">'+
-    list.map(function(l){ return '<tr><td style="width:30%">'+l.name+'</td><td><div class="bar" style="width:'+
-      Math.max(4,Math.round(l.sum/mx*100))+'%"></div></td><td class="n">'+hnum(l.sum)+'h · '+l.n+' 次'+
-      (l.rate!=null?' · 顺 '+Math.round(l.rate*100)+'%':'')+'</td></tr>'; }).join('')+'</table>';
+function drawInsight(w,list,opt){
+  if(!list.length){ w.innerHTML='<div class="empty">'+opt.empty+'</div>'; return; }
+  var cand=list.filter(function(o){return o.k!==opt.skip;});
+  var best=pickBest(cand), long=pickLongest(cand), lead=[];
+  if(best) lead.push('状态最好的'+opt.what+'是<b>'+opt.label(best.k).replace(/<span class="sub">.*<\/span>/,'')+
+    '</b>（'+moodCounts(best)+(best.moodN<3?'<span style="color:var(--ink-3)">，才 '+best.moodN+' 次，还不稳</span>':'')+'）');
+  if(long) lead.push('单次坐得最久的是<b>'+opt.label(long.k).replace(/<span class="sub">.*<\/span>/,'')+
+    '</b>，平均 <b>'+Math.round(long.avgMin)+'</b> 分钟'+thinNote(long.n));
+  w.innerHTML=
+    (lead.length? '<div class="line" style="margin-bottom:10px">'+lead.join('。<br>')+'。</div>':'')+
+    '<div class="inscap">长条越长，状态越好（全是顺最长，全是卡最短）</div>'+
+    list.map(function(o){
+      var pct=o.avgScore==null? 0 : Math.max(4,Math.round((o.avgScore-1)/2*100));
+      return '<div class="insrow'+(o.k===opt.skip?' dim':'')+'">'+
+        '<div class="top"><span>'+opt.label(o.k)+'</span><span class="n">'+o.n+' 次 · 均 '+Math.round(o.avgMin)+' 分</span></div>'+
+        '<div class="bot"><div class="track"><i style="width:'+pct+'%"></i></div>'+
+          '<span class="mc">'+(o.moodN? moodCounts(o) : '没标状态')+'</span></div></div>';
+    }).join('')+
+    (opt.foot? '<div class="inscap" style="margin-top:10px">'+opt.foot+'</div>':'');
 }
 
 /* ================= 台账 ================= */
