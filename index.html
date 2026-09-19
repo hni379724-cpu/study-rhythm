@@ -186,8 +186,7 @@ input[type=time]{font-family:var(--mono);font-size:16px;border:1px solid var(--s
   -webkit-overflow-scrolling:touch;scrollbar-width:none}
 .chartscroll::-webkit-scrollbar{display:none}
 .chartscroll svg.chart{max-width:none;width:auto;flex:none}
-.axispin{position:absolute;left:-18px;top:0;z-index:2;pointer-events:none;
-  box-shadow:8px 0 10px -8px rgba(40,35,25,.18)}
+.axispin{position:absolute;left:-18px;top:0;z-index:2;pointer-events:none;transition:opacity .2s}
 .axispin svg{display:block}
 .legrow{display:flex;flex-wrap:nowrap;gap:4px;margin-top:10px;align-items:center;
   font-size:12.5px;color:var(--ink-2);white-space:nowrap;overflow-x:auto;scrollbar-width:none}
@@ -1122,11 +1121,19 @@ function pinLeftAxis(wrap,PL,H){
   if(!svg||sc.scrollWidth<=sc.clientWidth+1) return;
   var parts=Array.prototype.filter.call(svg.querySelectorAll('text'),function(t){
     return parseFloat(t.getAttribute('x'))<PL; }).map(function(t){ return t.outerHTML; }).join('');
+  /* 右侧 14px 渐隐：图滑到轴下面时是淡出去，而不是被一刀切开 */
+  var F=14,Wp=PL+F;
   var pin=document.createElement('div'); pin.className='axispin';
-  pin.innerHTML='<svg width="'+PL+'" height="'+H+'" viewBox="0 0 '+PL+' '+H+'">'+
-    '<rect width="'+PL+'" height="'+H+'" fill="#FFFFFF"/>'+parts+'</svg>';
+  pin.innerHTML='<svg width="'+Wp+'" height="'+H+'" viewBox="0 0 '+Wp+' '+H+'">'+
+    '<defs><linearGradient id="pinfade" x1="0" x2="1" y1="0" y2="0">'+
+      '<stop offset="0" stop-color="#FFFFFF" stop-opacity="1"/>'+
+      '<stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/></linearGradient></defs>'+
+    '<rect width="'+(PL-4)+'" height="'+H+'" fill="#FFFFFF"/>'+
+    '<rect x="'+(PL-4)+'" width="'+(F+4)+'" height="'+H+'" fill="url(#pinfade)"/>'+parts+'</svg>';
   wrap.style.position='relative';
   wrap.insertBefore(pin,sc);
+  function upd(){ pin.style.opacity = sc.scrollLeft>2? '1':'0'; }
+  sc.addEventListener('scroll',upd,{passive:true}); upd();
 }
 /* 精神：三条上下对齐的带子，共用一条日期轴。
    竖着看一列就是同一天：昨晚几点睡 → 今天释放几次 → 今天精神几分。 */
@@ -1147,23 +1154,27 @@ function drawSpirit(wrap){
   var W=Math.max(avail,PL+PR+(N-1)*step), iw=W-PL-PR;
   function X(i){ return PL+(N<=1?iw/2:i*iw/(N-1)); }
 
-  var A={top:14,h:100}, B={top:140,h:74}, C={top:240,h:40};
+  /* 三条带子：带名写在每条带子的上方，刻度在左侧，互不挤 */
+  var A={top:24,h:96}, B={top:150,h:78}, C={top:256,h:32};
   var yE=function(v){ return A.top+A.h/2-(v/2)*(A.h/2); };                 // 精神 −2…+2，0 在中线
   var yS=function(m){ return B.top+(m-21*60)/(6*60)*B.h; };                // 睡点：越晚越靠下
-  var S=days.map(function(d){ var o=dayOf(d);
-    return {d:d,e:(o.spirit!=null?o.spirit:null),s:o.sleepAt?sleepMin(o.sleepAt):null,r:(o.release!=null?o.release:null)}; });
+  /* 睡点记在第二天（「昨晚几点睡」），画回它真正发生的那一晚：
+     第 i 列的睡点 = 第 i+1 天记下的「昨晚」 */
+  var S=days.map(function(d){ var o=dayOf(d),nx=dayOf(addDays(d,1));
+    return {d:d,e:(o.spirit!=null?o.spirit:null),s:nx.sleepAt?sleepMin(nx.sleepAt):null,
+      r:(o.release!=null?o.release:null)}; });
   var maxR=Math.max(3,Math.max.apply(null,S.map(function(p){return p.r||0;})));
   var yR=function(v){ return C.top+C.h-(v/maxR)*C.h; };
 
   var g='';
-  function bandLabel(txt,top){ return '<text x="4" y="'+(top+32)+'" font-size="11.5" fill="#6B665F" font-weight="600">'+txt+'</text>'; }
+  function bandLabel(txt,top){ return '<text x="4" y="'+(top-10)+'" font-size="11.5" fill="#6B665F" font-weight="600">'+txt+'</text>'; }
   function hline(y,dim){ return '<line x1="'+PL+'" y1="'+y+'" x2="'+(W-PR)+'" y2="'+y+'" stroke="rgba(0,0,0,'+(dim?'.045':'.08')+')"/>'; }
   function tick(y,txt){ return '<text x="'+(PL-6)+'" y="'+(y+3.5)+'" text-anchor="end" font-size="10" fill="#A9A396">'+txt+'</text>'; }
   g+=bandLabel('精神',A.top)+hline(yE(2),1)+hline(yE(-2),1)+
      '<line x1="'+PL+'" y1="'+yE(0)+'" x2="'+(W-PR)+'" y2="'+yE(0)+'" stroke="rgba(0,0,0,.16)"/>'+
      tick(yE(2),'+2')+tick(yE(0),'0')+tick(yE(-2),'−2');
   g+=bandLabel('睡点',B.top)+hline(yS(22*60),1)+hline(yS(24*60),1)+hline(yS(26*60),1)+
-     tick(yS(22*60),'22')+tick(yS(24*60),'0')+tick(yS(26*60),'2');
+     tick(yS(22*60),'22点')+tick(yS(24*60),'0点')+tick(yS(26*60),'2点');
   g+=bandLabel('释放',C.top)+hline(yR(0));
 
   function line(key,yf,color,w){
