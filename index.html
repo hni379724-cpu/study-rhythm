@@ -186,7 +186,15 @@ input[type=time]{font-family:var(--mono);font-size:16px;border:1px solid var(--s
   -webkit-overflow-scrolling:touch;scrollbar-width:none}
 .chartscroll::-webkit-scrollbar{display:none}
 .chartscroll svg.chart{max-width:none;width:auto;flex:none}
-.legchip{cursor:pointer;user-select:none;padding:4px 8px;border-radius:8px;transition:opacity .2s,background .2s}
+.axispin{position:absolute;left:-18px;top:0;z-index:2;pointer-events:none;
+  box-shadow:8px 0 10px -8px rgba(40,35,25,.18)}
+.axispin svg{display:block}
+.legrow{display:flex;flex-wrap:nowrap;gap:4px;margin-top:10px;align-items:center;
+  font-size:12.5px;color:var(--ink-2);white-space:nowrap;overflow-x:auto;scrollbar-width:none}
+.legrow::-webkit-scrollbar{display:none}
+.legrow i{display:inline-block;width:14px;vertical-align:middle;margin-right:5px}
+.legrow .still{padding:4px 6px}
+.legchip{cursor:pointer;user-select:none;padding:4px 7px;border-radius:8px;transition:opacity .2s,background .2s}
 .legchip:active{background:var(--fill)}
 .legchip.off{opacity:.34}
 svg.chart{display:block;max-width:100%}
@@ -273,6 +281,7 @@ details summary::-webkit-details-marker{display:none}
         <input type="number" id="customDur" min="1" max="1440" inputmode="numeric"><span class="line" style="font-size:14px">分钟</span>
       </div>
       <div class="frow"><div class="fk">状态</div><div class="tags" id="moodTags"></div></div>
+      <div class="frow"><div class="fk">压力</div><div class="tags" id="stressTags"></div></div>
       <div class="lab">搞懂了什么 <span style="opacity:.7">· 用逗号隔开，一段一件</span></div>
       <input type="text" id="note" autocomplete="off" enterkeyhint="done">
       <div id="gotPreview"></div>
@@ -764,7 +773,7 @@ async function toggleNotif(){
 /* ================= 录入 ================= */
 var SLEEPS=['22:30','23:00','23:30','00:00','01:00'];
 var BACKFILL_QUOTA=2;
-var form={minutes:null,custom:false,mood:null,loc:null,
+var form={minutes:null,custom:false,mood:null,stress:null,loc:null,
   start:null,end:null,editTime:false,backfill:null};
 
 /* 搞懂了什么 → 拆成一件一件。按逗号、分号、句号、换行拆；
@@ -786,8 +795,10 @@ function renderGot(){
 }
 
 /* ================= 精神：一天一条，点了就存 ================= */
-/* db.daily['YYYY-MM-DD'] = {sleepAt:'23:30', release:1, energy:4, stress:3}
-   睡点记的是「昨晚」，挂在今天——它影响的是今天的精神。 */
+/* db.daily['YYYY-MM-DD'] = {sleepAt:'23:30', release:1, spirit:1}
+   睡点记的是「昨晚」，挂在今天——它影响的是今天的精神。
+   精神是方向不是大小：−2 … +2，0 = 平常。 */
+function fmtSpirit(v){ return v>0? '+'+v : (v<0? '−'+(-v) : '0'); }
 var dayEditing=false;
 function dayOf(d){ return (db.daily||{})[d]||{}; }
 function setDay(field,val){
@@ -802,21 +813,25 @@ function setDay(field,val){
 function migrateDaily(){
   var changed=false; db.daily=db.daily||{};
   db.records.slice().sort(function(a,b){return a.createdAt<b.createdAt?-1:1;}).forEach(function(r){
-    if(!r.sleepAt&&!r.stress) return;
+    if(!r.sleepAt) return;
     var o=db.daily[r.date]=db.daily[r.date]||{};
-    if(r.sleepAt&&!o.sleepAt){ o.sleepAt=r.sleepAt; changed=true; }
-    if(r.stress&&!o.stress){ o.stress=+r.stress; changed=true; }
+    if(!o.sleepAt){ o.sleepAt=r.sleepAt; changed=true; }
+  });
+  /* 精神从 1–5 换成 −2…+2：3 是平常 */
+  Object.keys(db.daily).forEach(function(k){
+    var o=db.daily[k];
+    if(o.energy!=null){ if(o.spirit==null) o.spirit=Math.max(-2,Math.min(2,o.energy-3)); delete o.energy; changed=true; }
   });
   if(changed) save();
 }
 function renderDay(){
   var body=document.getElementById('dayBody'),edit=document.getElementById('dayEdit');
   var o=dayOf(todayStr());
-  var full=o.sleepAt&&o.release!=null&&o.energy&&o.stress;
+  var full=o.sleepAt&&o.release!=null&&o.spirit!=null;
   if(full&&!dayEditing){
     body.innerHTML='<div class="daysum">'+
       '<span><b>'+esc(o.sleepAt)+'</b> 睡</span><span>释放 <b>'+o.release+'</b></span>'+
-      '<span>精神 <b>'+o.energy+'</b></span><span>压力 <b>'+o.stress+'</b></span></div>';
+      '<span>精神 <b>'+fmtSpirit(o.spirit)+'</b></span></div>';
     edit.style.display=''; edit.textContent='改';
     return;
   }
@@ -830,8 +845,8 @@ function renderDay(){
     '<div class="dayrow"><div class="dk">睡点<span>昨晚</span></div><div class="tags">'+chips('sleepAt',SLEEPS)+
       '<input type="time" id="daySleep" value="'+(o.sleepAt||'')+'"></div></div>'+
     '<div class="dayrow"><div class="dk">释放</div><div class="tags">'+chips('release',[0,1,2,3,4])+'</div></div>'+
-    '<div class="dayrow"><div class="dk">精神</div><div class="tags">'+chips('energy',[1,2,3,4,5])+'</div></div>'+
-    '<div class="dayrow"><div class="dk">压力</div><div class="tags">'+chips('stress',[1,2,3,4,5])+'</div></div>';
+    '<div class="dayrow"><div class="dk">精神<span>0 平常</span></div><div class="tags">'+
+      chips('spirit',[-2,-1,0,1,2],fmtSpirit)+'</div></div>';
   body.querySelectorAll('.tag').forEach(function(b){
     b.onclick=function(){
       buzz(8);
@@ -876,7 +891,7 @@ function buildTags(){
     document.getElementById('customDurRow').style.display='flex'; sync();
     document.getElementById('customDur').focus(); };
   dw.appendChild(cb);
-  mk('moodTags',MOODS,'mood'); mk('locTags',LOCS,'loc');
+  mk('moodTags',MOODS,'mood'); mk('stressTags',[1,2,3,4,5],'stress','num'); mk('locTags',LOCS,'loc');
   function mk(id,list,f,cls){
     var w=document.getElementById(id);
     list.forEach(function(v){
@@ -911,7 +926,7 @@ function sync(){
   document.querySelectorAll('#durTags .tag').forEach(function(b){
     var m=b.getAttribute('data-m');
     b.classList.toggle('on', m?(!form.custom&&form.minutes===+m):!!form.custom); });
-  [['moodTags','mood'],['locTags','loc']].forEach(function(p){
+  [['moodTags','mood'],['stressTags','stress'],['locTags','loc']].forEach(function(p){
     document.querySelectorAll('#'+p[0]+' .tag').forEach(function(b){
       b.classList.toggle('on', String(form[p[1]])===b.getAttribute('data-v')); }); });
   renderBackfillUI(); renderGot();
@@ -921,7 +936,7 @@ function resetForm(){
   document.getElementById('content').value=''; document.getElementById('note').value='';
   document.getElementById('customDur').value='';
   document.getElementById('customDurRow').style.display='none';
-  form={minutes:null,custom:false,mood:null,loc:null,
+  form={minutes:null,custom:false,mood:null,stress:null,loc:null,
     start:null,end:null,editTime:false,backfill:null};
   sync();
 }
@@ -937,6 +952,7 @@ function addRecord(){
         : (bf? {start:null,end:null} : autoTimes());
   var rec={id:uid(),date:bf||todayStr(),content:content,subject:subjectOf(content),minutes:minutes,
     start:t.start,end:t.end,type:'新学',location:form.loc,mood:form.mood,gotV:1,
+    stress:form.stress?+form.stress:null,
     note:document.getElementById('note').value.trim(),createdAt:new Date().toISOString()};
   db.records.push(rec);
   if(bf) useBackfill();
@@ -1002,14 +1018,16 @@ function dailySeries(days){
   return days.map(function(d){
     var rs=by[d];
     if(!rs) return {d:d,min:null,eff:null,stress:null,mood:null};
-    var min=0,got=0,minGot=0,hasGot=false,st=null,mv=[],i;
+    var min=0,got=0,minGot=0,hasGot=false,sv=[],mv=[],i;
     for(i=0;i<rs.length;i++){
       min+=(+rs[i].minutes||0);
       var g=gotCount(rs[i]); if(g){ got+=g; minGot+=(+rs[i].minutes||0); hasGot=true; }
-      if(rs[i].stress>0) st=rs[i].stress;
+      if(rs[i].stress>0) sv.push(+rs[i].stress);
       if(rs[i].mood&&MOODVAL[rs[i].mood]) mv.push(MOODVAL[rs[i].mood]);
     }
-    if(dayOf(d).stress) st=dayOf(d).stress;
+    /* 压力：当天各次的平均；那几天压力记在精神卡片里的，用那个值兜底 */
+    var st = sv.length? Math.round(sv.reduce(function(a,b){return a+b;},0)/sv.length*10)/10
+                      : (dayOf(d).stress||null);
     /* 效率 = 搞懂的件数 ÷ 写了搞懂内容的那几次的学习小时数
        （没写的那几次不拖低效率，也不算进来） */
     var eff = (hasGot&&minGot>0)? Math.round(got/(minGot/60)*10)/10 : null;
@@ -1020,7 +1038,7 @@ function dailySeries(days){
 function drawDaily(wrap){
   var days=dailyDays(),S=dailySeries(days),N=days.length;
   /* 每天固定间距，天数多了就横向滚动；天数少时拉满卡片宽度 */
-  var PL=30,PR=26,PT=14,PB=32,H=268;
+  var PL=30,PR=26,PT=24,PB=32,H=276;
   var avail=Math.max(280,(wrap.clientWidth||340)+36);   // 通铺：把卡片左右内边距吃回来
   /* 装得下就按可用宽度铺满；装不下（约两周以上）才按每天 24px 横向滚动 */
   var fit=N>1? (avail-PL-PR)/(N-1) : avail;
@@ -1036,8 +1054,9 @@ function drawDaily(wrap){
   function YL(v){ return PT+ih-(v/maxL)*ih; }
   function YR(v){ return PT+ih-(v/maxR)*ih; }
 
-  /* 网格：0 有线无标签 */
-  var g='<line x1="'+PL+'" y1="'+YL(0)+'" x2="'+(W-PR)+'" y2="'+YL(0)+'" stroke="rgba(0,0,0,.09)"/>';
+  /* 网格：0 有线无标签；左轴顶上标单位 */
+  var g='<line x1="'+PL+'" y1="'+YL(0)+'" x2="'+(W-PR)+'" y2="'+YL(0)+'" stroke="rgba(0,0,0,.09)"/>'+
+    '<text x="'+(PL-7)+'" y="'+(PT-10)+'" text-anchor="end" font-size="9.5" fill="#B5AFA3">分</text>';
   [maxL/2,maxL].forEach(function(v){
     g+='<line x1="'+PL+'" y1="'+YL(v)+'" x2="'+(W-PR)+'" y2="'+YL(v)+'" stroke="rgba(0,0,0,.05)"/>'+
       '<text x="'+(PL-7)+'" y="'+(YL(v)+4)+'" text-anchor="end" font-size="10.5" fill="#9C968D">'+Math.round(v)+'</text>';
@@ -1079,22 +1098,35 @@ function drawDaily(wrap){
       (studied?'#6B665F':'#BDB7AC')+'">'+(dd.getMonth()+1)+'/'+dd.getDate()+'</text>';
   }).join('');
 
-  var LEG=[['min','时长 分','#CE8E12'],['eff','效率 件/时','#6FA27A'],
-           ['stress','压力','#B08BA5'],['mood','状态','#7E9BB5']];
+  var LEG=[['min','时长','#CE8E12',''],['eff','效率','#6FA27A',''],
+           ['stress','压力','#B08BA5','dash'],['mood','状态','#7E9BB5','']];
   wrap.innerHTML='<div class="chartscroll"><svg class="chart" viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'">'+
     g+lines+labels+'</svg></div>'+
-    '<div class="legend" id="dailyLeg" style="gap:14px;flex-wrap:wrap">'+
+    '<div class="legrow" id="dailyLeg">'+
     LEG.map(function(l){
       return '<span class="legchip'+(dailyOn[l[0]]?'':' off')+'" data-k="'+l[0]+'">'+
-        '<span style="display:inline-block;width:16px;border-top:2.5px solid '+l[2]+';vertical-align:middle"></span> '+l[1]+'</span>';
+        '<i style="border-top:2.5px '+(l[3]?'dashed':'solid')+' '+l[2]+'"></i>'+l[1]+'</span>';
     }).join('')+'</div>'+
     (db.records.length<20? '<div class="empty" style="font-size:13.5px;margin-top:10px">再记一段时间，这里会看出规律。</div>':'');
 
   var sc=wrap.querySelector('.chartscroll');
   if(sc) sc.scrollLeft=sc.scrollWidth;          // 默认看最近这几天
+  pinLeftAxis(wrap,PL,H);
   wrap.querySelectorAll('.legchip').forEach(function(c){
     c.onclick=function(){ buzz(8); var k=c.getAttribute('data-k'); dailyOn[k]=!dailyOn[k]; drawDaily(wrap); };
   });
+}
+/* 横向滚动时，左边的轴标签（带子名、刻度）钉住不动，图在它下面滑 */
+function pinLeftAxis(wrap,PL,H){
+  var sc=wrap.querySelector('.chartscroll'),svg=sc&&sc.querySelector('svg');
+  if(!svg||sc.scrollWidth<=sc.clientWidth+1) return;
+  var parts=Array.prototype.filter.call(svg.querySelectorAll('text'),function(t){
+    return parseFloat(t.getAttribute('x'))<PL; }).map(function(t){ return t.outerHTML; }).join('');
+  var pin=document.createElement('div'); pin.className='axispin';
+  pin.innerHTML='<svg width="'+PL+'" height="'+H+'" viewBox="0 0 '+PL+' '+H+'">'+
+    '<rect width="'+PL+'" height="'+H+'" fill="#FFFFFF"/>'+parts+'</svg>';
+  wrap.style.position='relative';
+  wrap.insertBefore(pin,sc);
 }
 /* 精神：三条上下对齐的带子，共用一条日期轴。
    竖着看一列就是同一天：昨晚几点睡 → 今天释放几次 → 今天精神几分。 */
@@ -1116,18 +1148,20 @@ function drawSpirit(wrap){
   function X(i){ return PL+(N<=1?iw/2:i*iw/(N-1)); }
 
   var A={top:14,h:100}, B={top:140,h:74}, C={top:240,h:40};
-  var yE=function(v){ return A.top+A.h-(v-1)/4*A.h; };                    // 精神 1–5
+  var yE=function(v){ return A.top+A.h/2-(v/2)*(A.h/2); };                 // 精神 −2…+2，0 在中线
   var yS=function(m){ return B.top+(m-21*60)/(6*60)*B.h; };                // 睡点：越晚越靠下
   var S=days.map(function(d){ var o=dayOf(d);
-    return {d:d,e:o.energy||null,s:o.sleepAt?sleepMin(o.sleepAt):null,r:(o.release!=null?o.release:null)}; });
+    return {d:d,e:(o.spirit!=null?o.spirit:null),s:o.sleepAt?sleepMin(o.sleepAt):null,r:(o.release!=null?o.release:null)}; });
   var maxR=Math.max(3,Math.max.apply(null,S.map(function(p){return p.r||0;})));
   var yR=function(v){ return C.top+C.h-(v/maxR)*C.h; };
 
   var g='';
-  function bandLabel(txt,top){ return '<text x="4" y="'+(top+11)+'" font-size="11.5" fill="#6B665F" font-weight="600">'+txt+'</text>'; }
+  function bandLabel(txt,top){ return '<text x="4" y="'+(top+32)+'" font-size="11.5" fill="#6B665F" font-weight="600">'+txt+'</text>'; }
   function hline(y,dim){ return '<line x1="'+PL+'" y1="'+y+'" x2="'+(W-PR)+'" y2="'+y+'" stroke="rgba(0,0,0,'+(dim?'.045':'.08')+')"/>'; }
   function tick(y,txt){ return '<text x="'+(PL-6)+'" y="'+(y+3.5)+'" text-anchor="end" font-size="10" fill="#A9A396">'+txt+'</text>'; }
-  g+=bandLabel('精神',A.top)+hline(yE(1))+hline(yE(3),1)+hline(yE(5),1)+tick(yE(3),'3')+tick(yE(5),'5');
+  g+=bandLabel('精神',A.top)+hline(yE(2),1)+hline(yE(-2),1)+
+     '<line x1="'+PL+'" y1="'+yE(0)+'" x2="'+(W-PR)+'" y2="'+yE(0)+'" stroke="rgba(0,0,0,.16)"/>'+
+     tick(yE(2),'+2')+tick(yE(0),'0')+tick(yE(-2),'−2');
   g+=bandLabel('睡点',B.top)+hline(yS(22*60),1)+hline(yS(24*60),1)+hline(yS(26*60),1)+
      tick(yS(22*60),'22')+tick(yS(24*60),'0')+tick(yS(26*60),'2');
   g+=bandLabel('释放',C.top)+hline(yR(0));
@@ -1150,6 +1184,15 @@ function drawSpirit(wrap){
       '<text x="'+X(i)+'" y="'+(yR(p.r)-3)+'" text-anchor="middle" font-size="9.5" fill="#9C8494">'+p.r+'</text>';
   }).join('');
 
+  /* 精神：从 0 线往上（好）或往下（差）长的柱子；0 画一个小横条，表示记了、是平常 */
+  var spirit=S.map(function(p,i){
+    if(p.e==null) return '';
+    if(p.e===0) return '<rect x="'+(X(i)-bw/2)+'" y="'+(yE(0)-1.5)+'" width="'+bw+'" height="3" rx="1.5" fill="#CFC9BD"/>';
+    var up=p.e>0, y0=yE(0), y1=yE(p.e);
+    return '<rect x="'+(X(i)-bw/2)+'" y="'+Math.min(y0,y1)+'" width="'+bw+'" height="'+Math.abs(y1-y0)+
+      '" rx="3" fill="'+(up?'#E3AE45':'#9DB3C6')+'"/>';
+  }).join('');
+
   var every=(step>=30)?1:2;
   var labels=S.map(function(p,i){
     if(i%every!==0&&i!==N-1) return '';
@@ -1159,9 +1202,16 @@ function drawSpirit(wrap){
   }).join('');
 
   wrap.innerHTML='<div class="chartscroll"><svg class="chart" viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'">'+
-    g+line('e',yE,'#CE8E12',2.5)+line('s',yS,'#7E9BB5',2)+bars+labels+'</svg></div>'+
+    g+spirit+line('s',yS,'#7E9BB5',2)+bars+labels+'</svg></div>'+
+    '<div class="legrow">'+
+      '<span class="still"><i style="border-top:8px solid #E3AE45;width:9px;border-radius:2px"></i>精神 +</span>'+
+      '<span class="still"><i style="border-top:8px solid #9DB3C6;width:9px;border-radius:2px"></i>精神 −</span>'+
+      '<span class="still"><i style="border-top:2.5px solid #7E9BB5"></i>睡点</span>'+
+      '<span class="still"><i style="border-top:8px solid #C9A9BE;width:9px;border-radius:2px"></i>释放</span>'+
+    '</div>'+
     (keys.length<20?'<div class="empty" style="font-size:13.5px;margin-top:10px">再记一段时间，这里会看出规律。</div>':'');
   var sc=wrap.querySelector('.chartscroll'); if(sc) sc.scrollLeft=sc.scrollWidth;
+  pinLeftAxis(wrap,PL,H);
 }
 function heatColor(v,mx){ if(!v) return 'var(--quiet-2)';
   var s=['#FAEBC9','#F3D89A','#E9B44C','#CE8E12','#A9740A'];
@@ -1349,6 +1399,7 @@ function recNode(r,showDate){
   if(showDate) meta.push(md(r.date));
   if(r.start) meta.push(r.start+'–'+r.end);
   if(r.mood) meta.push(r.mood);
+  if(r.stress) meta.push('压力 '+r.stress);
   var gc=gotCount(r); if(gc) meta.push('懂了 '+gc+' 件');
   if(r.location) meta.push(r.location);
   var nx=reviewsOf(r.id).filter(function(x){return x.status==='pending';})[0];
@@ -1437,7 +1488,8 @@ function exportCSV(){
     var rv=reviewsOf(r.id),o=dayOf(r.date);
     var row=[r.date,r.start||'',r.end||'',r.minutes,r.content,r.subject||'',
       r.mood||'',r.location||'',r.note||'',gotCount(r)||'',
-      o.sleepAt||r.sleepAt||(r.sleep?'早睡':''),(o.release!=null?o.release:''),o.energy||'',o.stress||r.stress||''];
+      o.sleepAt||r.sleepAt||(r.sleep?'早睡':''),(o.release!=null?o.release:''),
+      (o.spirit!=null?fmtSpirit(o.spirit):''),r.stress||o.stress||''];
     for(var i=1;i<=5;i++){
       var x=rv.filter(function(v){return v.round===i;})[0];
       row.push(x?x.dueDate:'', x?({pending:'待回顾',done:'已完成',retired:'已熟'}[x.status]||x.status):'');
