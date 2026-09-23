@@ -275,7 +275,15 @@ details summary::-webkit-details-marker{display:none}
     </div>
 
     <div class="card">
-      <div class="ttl"><span>精神</span><button class="ghost tap" id="dayEdit" style="display:none">改</button></div>
+      <div class="ttl"><span id="dayTitle">精神</span>
+        <span style="display:flex;gap:6px">
+          <button class="ghost tap" id="dayEdit" style="display:none">改</button>
+          <button class="ghost tap" id="dayBfBtn">补签</button>
+        </span></div>
+      <div id="dayBfRow" style="display:none;margin-bottom:12px" class="row">
+        <input type="date" id="dayBfDate">
+        <button class="ghost tap" id="dayBfCancel">取消</button>
+      </div>
       <div id="dayBody"></div>
     </div>
 
@@ -438,6 +446,7 @@ function load(){
       legacyIds:Array.isArray(d.ics.ids)?d.ics.ids:(d.ics.legacyIds||[])};
     if(d.calHour) db.calHour=d.calHour;
     if(d.backfill&&typeof d.backfill==='object') db.backfill=d.backfill;
+    if(d.bf&&typeof d.bf==='object') db.bf={rec:d.bf.rec||[],day:d.bf.day||[]};
     if(d.daily&&typeof d.daily==='object') db.daily=d.daily;
   }catch(e){}
 }
@@ -784,7 +793,15 @@ async function toggleNotif(){
 
 /* ================= 录入 ================= */
 var SLEEPS=['22:30','23:00','23:30','00:00','01:00'];
-var BACKFILL_QUOTA=2;
+/* 补签：两张卡片各自每月 3 次，按「补哪一天」计数——
+   同一天补第二笔不再扣次数（一天里本来就可能有两段学习） */
+var BF_QUOTA=3;
+function bfList(kind){ db.bf=db.bf||{rec:[],day:[]}; return db.bf[kind]=db.bf[kind]||[]; }
+function bfUsed(kind){ var m=monthKey();
+  return bfList(kind).filter(function(s){ return s.indexOf(m)===0; }).length; }
+function bfLeft(kind){ return BF_QUOTA-bfUsed(kind); }
+function bfHas(kind,date){ return bfList(kind).indexOf(date)>=0; }
+function bfTake(kind,date){ if(!bfHas(kind,date)) bfList(kind).push(date); }
 var form={minutes:null,custom:false,mood:null,stress:null,loc:null,
   start:null,end:null,editTime:false,backfill:null};
 
@@ -811,10 +828,15 @@ function renderGot(){
    睡点记的是「昨晚」，挂在今天——它影响的是今天的精神。
    精神是方向不是大小：−2 … +2，0 = 平常。 */
 function fmtSpirit(v){ return v>0? '+'+v : (v<0? '−'+(-v) : '0'); }
-var dayEditing=false;
+var dayEditing=false, dayBf=null;              // dayBf = 正在补签的那一天
+function dayTarget(){ return dayBf||todayStr(); }
 function dayOf(d){ return (db.daily||{})[d]||{}; }
 function setDay(field,val){
-  var t=todayStr(); db.daily=db.daily||{};
+  var t=dayTarget(); db.daily=db.daily||{};
+  if(dayBf&&!bfHas('day',dayBf)){
+    if(bfLeft('day')<=0){ toast('本月的 3 次补签用完了，下个月再来'); return; }
+    bfTake('day',dayBf);
+  }
   var o=db.daily[t]=db.daily[t]||{};
   if(o[field]===val||val===''||val==null) delete o[field]; else o[field]=val;
   if(!Object.keys(o).length) delete db.daily[t];
@@ -838,16 +860,27 @@ function migrateDaily(){
 }
 function renderDay(){
   var body=document.getElementById('dayBody'),edit=document.getElementById('dayEdit');
-  var o=dayOf(todayStr());
+  var btn=document.getElementById('dayBfBtn'),row=document.getElementById('dayBfRow');
+  var ttl=document.getElementById('dayTitle'),left=bfLeft('day');
+  var o=dayOf(dayTarget());
+  if(dayBf){
+    ttl.textContent='补 '+md(dayBf)+' 的精神';
+    btn.style.display='none'; row.style.display='flex';
+  }else{
+    ttl.textContent='精神';
+    btn.style.display=''; row.style.display='none';
+    btn.textContent = left>0? '补签 '+left : '补签';
+    btn.style.opacity = left>0? '1':'.45';
+  }
   var full=o.sleepAt&&o.release!=null&&o.spirit!=null;
-  if(full&&!dayEditing){
+  if(full&&!dayEditing&&!dayBf){
     body.innerHTML='<div class="daysum">'+
       '<span><b>'+esc(o.sleepAt)+'</b> 睡</span><span>释放 <b>'+o.release+'</b></span>'+
       '<span>精神 <b>'+fmtSpirit(o.spirit)+'</b></span></div>';
     edit.style.display=''; edit.textContent='改';
     return;
   }
-  edit.style.display=full?'':'none'; edit.textContent='好';
+  edit.style.display=(full&&!dayBf)?'':'none'; edit.textContent='好';
   function chips(field,list,fmt){
     return list.map(function(v){
       return '<div class="tag num'+(o[field]===v?' on':'')+'" data-f="'+field+'" data-v="'+v+'">'+(fmt?fmt(v):v)+'</div>';
@@ -871,14 +904,22 @@ function renderDay(){
 
 /* 补签：一个月两次，补哪天由你定 */
 function monthKey(){ var d=today(); return d.getFullYear()+'-'+pad(d.getMonth()+1); }
-function backfillLeft(){ return BACKFILL_QUOTA-((db.backfill||{})[monthKey()]||0); }
-function useBackfill(){
-  db.backfill=db.backfill||{};
-  db.backfill[monthKey()]=((db.backfill[monthKey()]||0)+1);
+/* 老版本按「次」计数，没留日期；把它折算成占位，保证额度不会凭空多出来 */
+function migrateBackfill(){
+  db.bf=db.bf||{rec:[],day:[]};
+  if(db.backfill&&typeof db.backfill==='object'){
+    Object.keys(db.backfill).forEach(function(m){
+      for(var i=0;i<(db.backfill[m]||0);i++){
+        var tag=m+'#'+i;
+        if(db.bf.rec.indexOf(tag)<0) db.bf.rec.push(tag);
+      }
+    });
+    delete db.backfill; save();
+  }
 }
 function renderBackfillUI(){
   var btn=document.getElementById('backfillBtn'),row=document.getElementById('backfillRow');
-  var ttl=document.getElementById('entryTitle'),left=backfillLeft();
+  var ttl=document.getElementById('entryTitle'),left=bfLeft('rec');
   if(form.backfill){
     ttl.textContent='补 '+md(form.backfill)+' 的记录';
     btn.style.display='none'; row.style.display='flex';
@@ -957,6 +998,8 @@ function addRecord(){
   if(!content){ toast('写一句学了什么就行'); document.getElementById('content').focus(); return; }
   var minutes=curMinutes();
   if(!minutes||minutes<=0){ toast('选一个时长'); return; }
+  if(form.backfill&&!bfHas('rec',form.backfill)&&bfLeft('rec')<=0){
+    toast('本月的 3 次补签用完了，下个月再来'); return; }
   if(minutes>1440) minutes=1440;
   /* 补签的那天不该按现在的钟点推算时间段，除非你自己填了 */
   var bf=form.backfill;
@@ -967,10 +1010,10 @@ function addRecord(){
     stress:form.stress?+form.stress:null,
     note:document.getElementById('note').value.trim(),createdAt:new Date().toISOString()};
   db.records.push(rec);
-  if(bf) useBackfill();
+  if(bf) bfTake('rec',bf);
   schedulePlan(rec);
   var got=gotCount(rec);
-  var msg = bf? ('补上了 '+md(bf)+' · 本月还能补 '+backfillLeft()+' 次')
+  var msg = bf? ('补上了 '+md(bf)+' · 本月还能补 '+bfLeft('rec')+' 天')
     : ((got? '懂了 '+got+' 件 · ':'')+'回顾排好了 · '+OFFSETS.map(function(o){return md(addDays(rec.date,o));}).join(' · '));
   buzzOK(); save(); resetForm(); renderAll(true); scheduleNotifications(); toast(msg);
 }
@@ -1504,7 +1547,7 @@ function download(blob,name){
 function exportJSON(){
   download(new Blob([JSON.stringify({version:4,exportedAt:new Date().toISOString(),records:db.records,
     reviews:db.reviews,mastery:db.mastery,notify:db.notify,calHour:db.calHour||null,
-    daily:db.daily||{},backfill:db.backfill||{}},null,2)],
+    daily:db.daily||{},bf:db.bf||{rec:[],day:[]}},null,2)],
     {type:'application/json'}),'学习节奏-'+todayStr()+'.json');
   buzz(12); toast('已导出备份');
 }
@@ -1615,7 +1658,9 @@ function importJSON(file){
       if(!d||!Array.isArray(d.records)) throw new Error('格式不对');
       var merge=db.records.length? confirm('已有 '+db.records.length+' 条记录。\n\n确定 = 合并\n取消 = 用文件覆盖全部'):false;
       if(!merge){ db.records=d.records; db.reviews=d.reviews||[]; db.mastery=d.mastery||{};
-        db.daily=d.daily||{}; if(d.backfill) db.backfill=d.backfill; }
+        db.daily=d.daily||{};
+        if(d.bf) db.bf={rec:d.bf.rec||[],day:d.bf.day||[]};
+        if(d.backfill) db.backfill=d.backfill; }
       else{
         var h={}; db.records.forEach(function(r){h[r.id]=1;});
         d.records.forEach(function(r){ if(!h[r.id]) db.records.push(r); });
@@ -1642,6 +1687,7 @@ function go(v){
   if(v==='data') renderChart(chartView==='radius');
 }
 function renderAll(animate){
+  if(document.getElementById('durTags').children.length) sync();   // 顺带刷新补签剩余次数
   renderPlan(); renderDay(); renderStats(); renderLedger(); renderChart(!!animate&&chartView==='radius');
   renderInsight(); renderRecords(); renderLibrary(); renderNotifUI();
   document.getElementById('dataStat').textContent=
@@ -1658,7 +1704,7 @@ function bindSeg(id,cb){
 function init(){
   load();
   try{ localStorage.setItem('__t','1'); localStorage.removeItem('__t'); }catch(e){ storageOK=false; }
-  migratePlans(); migrateDaily(); catchUp();
+  migratePlans(); migrateDaily(); migrateBackfill(); catchUp();
   var t=today(),wd=['周日','周一','周二','周三','周四','周五','周六'][t.getDay()];
   document.getElementById('todayDate').textContent=(t.getMonth()+1)+' 月 '+t.getDate()+' 日 · '+wd;
   buildTags(); sync();
@@ -1666,9 +1712,26 @@ function init(){
   document.getElementById('saveBtn').onclick=addRecord;
   document.getElementById('customDur').addEventListener('input',renderTimeRow);
   document.getElementById('dayEdit').onclick=function(){ buzz(8); dayEditing=!dayEditing; renderDay(); };
+  document.getElementById('dayBfBtn').onclick=function(){
+    buzz(10);
+    if(bfLeft('day')<=0){ toast('本月的 3 次补签用完了，下个月再来'); return; }
+    var inp=document.getElementById('dayBfDate');
+    inp.max=addDays(todayStr(),-1); inp.min=addDays(todayStr(),-60);
+    inp.value=addDays(todayStr(),-1);
+    dayBf=inp.value; dayEditing=false; renderDay();
+  };
+  document.getElementById('dayBfDate').onchange=function(){
+    if(!this.value) return;
+    if(this.value>=todayStr()){ toast('补签只能补过去的日子'); this.value=addDays(todayStr(),-1); }
+    dayBf=this.value; renderDay();
+  };
+  document.getElementById('dayBfCancel').onclick=function(){
+    buzz(8); dayBf=null; renderDay();
+    toast('回到今天');
+  };
   document.getElementById('backfillBtn').onclick=function(){
     buzz(10);
-    if(backfillLeft()<=0){ toast('本月的两次补签用完了，下个月再来'); return; }
+    if(bfLeft('rec')<=0){ toast('本月的 3 次补签用完了，下个月再来'); return; }
     var inp=document.getElementById('backfillDate');
     inp.max=addDays(todayStr(),-1); inp.min=addDays(todayStr(),-60);
     inp.value=addDays(todayStr(),-1);

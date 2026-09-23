@@ -1,4 +1,20 @@
-﻿*.json.bak
+*.json.bak
 学习节奏-*.json
 学习台账-*.csv
 学习回顾-*.ics
+
+# 放在这个文件夹里的个人资料，一律不进仓库、不上传
+缠中说禅/
+*.pdf
+*.chm
+*.doc
+*.docx
+*.ppt
+*.pptx
+*.7z
+*.zip
+*.rar
+*.mp3
+*.mp4
+*.jpg
+*.jpeg
