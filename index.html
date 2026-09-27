@@ -511,26 +511,48 @@ function idbOpen(){
 }
 /* 第二份副本：整库写进 IndexedDB。它和 localStorage 是两套机制，
    清理工具、意外覆盖经常只清掉其中一个，留一份能救回来。 */
-function backupToIDB(){
+/* 两个槽位：
+   full = 每次保存的最新快照
+   safe = 历史最高水位，只有记录数不少于它时才更新
+   清空或误覆盖之后，safe 还在，这是真正能救命的那一份。 */
+function idbPut(key,val){
   if(!('indexedDB' in window)) return Promise.resolve();
-  var snap={at:Date.now(),n:db.records.length,data:JSON.parse(JSON.stringify(db))};
   return idbOpen().then(function(d){
     return new Promise(function(res){
       var tx=d.transaction('kv','readwrite');
-      tx.objectStore('kv').put(snap,'full');
+      tx.objectStore('kv').put(val,key);
       tx.oncomplete=function(){ d.close(); res(); };
-      tx.onerror=function(){ res(); };
+      tx.onerror=function(){ d.close(); res(); };
     });
   }).catch(function(){});
 }
-function readIDBBackup(){
+function idbGet(key){
   if(!('indexedDB' in window)) return Promise.resolve(null);
   return idbOpen().then(function(d){
     return new Promise(function(res){
-      var g=d.transaction('kv','readonly').objectStore('kv').get('full');
+      var g=d.transaction('kv','readonly').objectStore('kv').get(key);
       g.onsuccess=function(){ d.close(); res(g.result||null); };
       g.onerror=function(){ d.close(); res(null); };
     });
+  }).catch(function(){ return null; });
+}
+function backupToIDB(force){
+  var n=db.records.length;
+  if(!n&&!force) return Promise.resolve();          // 绝不备份空数据
+  var snap={at:Date.now(),n:n,data:JSON.parse(JSON.stringify(db))};
+  return idbPut('full',snap).then(function(){
+    return idbGet('safe').then(function(s){
+      if(force||!s||!s.data||n>=(s.n||0)) return idbPut('safe',snap);
+    });
+  });
+}
+/* 取两个槽位里记录数多的那个 */
+function readIDBBackup(){
+  return Promise.all([idbGet('full'),idbGet('safe')]).then(function(a){
+    var list=a.filter(function(x){ return x&&x.data&&Array.isArray(x.data.records); });
+    if(!list.length) return null;
+    list.sort(function(x,y){ return (y.data.records.length-x.data.records.length)||(y.at-x.at); });
+    return list[0];
   }).catch(function(){ return null; });
 }
 /* 开机自检：存储读不出来，或者记录数比副本少很多，就问一句要不要恢复 */
@@ -545,12 +567,21 @@ function checkBackup(){
     var node=el('<div class="banner"><div class="txt">'+
       (storageSuspect? '浏览器里的数据读不出来。':'现在是 '+mine+' 条记录，')+
       '应用内部还留着一份副本：<b>'+his+' 条</b>，存于 '+w+'。</div>'+
-      '<button>恢复</button></div>');
-    node.querySelector('button').onclick=function(){
-      buzz(12);
-      if(!confirm('用副本里的 '+his+' 条记录替换现在的 '+mine+' 条？')) return;
-      db=b.data; storageSuspect=false; save(); renderAll(true); toast('已从副本恢复 · '+his+' 条');
-    };
+      '<span style="display:flex;gap:6px;flex:none">'+
+        '<button data-a="no" style="background:var(--fill);color:var(--ink-2)">不用</button>'+
+        '<button data-a="yes">恢复</button></span></div>');
+    node.querySelectorAll('button').forEach(function(btn){
+      btn.onclick=function(){
+        buzz(12);
+        if(btn.getAttribute('data-a')==='no'){
+          try{ sessionStorage.setItem('bk-ignored','1'); }catch(e){}
+          node.remove(); return;
+        }
+        if(!confirm('用副本里的 '+his+' 条记录替换现在的 '+mine+' 条？')) return;
+        db=b.data; storageSuspect=false; save(); backupToIDB(true);
+        renderAll(true); toast('已从副本恢复 · '+his+' 条');
+      };
+    });
     var box=document.getElementById('bkBanner');
     box.innerHTML=''; box.appendChild(node);
   });
@@ -568,7 +599,8 @@ function renderBackupRow(){
       buzz(12);
       var n=b.data.records.length;
       if(!confirm('用副本里的 '+n+' 条记录替换现在的 '+db.records.length+' 条？')) return;
-      db=b.data; storageSuspect=false; save(); renderAll(true); toast('已从副本恢复 · '+n+' 条');
+      db=b.data; storageSuspect=false; save(); backupToIDB(true);
+      renderAll(true); toast('已从副本恢复 · '+n+' 条');
     };
   });
 }
@@ -1752,7 +1784,8 @@ function importJSON(file){
         Object.keys(d.daily||{}).forEach(function(k){
           db.daily[k]=Object.assign({}, d.daily[k], db.daily[k]||{}); });
       }
-      save(); renderAll(true); scheduleNotifications(); buzzOK(); toast('导入完成 · 共 '+db.records.length+' 条');
+      save(); backupToIDB(true);            // 导入是明确意图，重设高水位
+      renderAll(true); scheduleNotifications(); buzzOK(); toast('导入完成 · 共 '+db.records.length+' 条');
     }catch(e){ alert('这个文件读不了：'+e.message); }
   };
   fr.readAsText(file);
