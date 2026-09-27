@@ -408,7 +408,7 @@ details summary::-webkit-details-marker{display:none}
         <button class="ghost tap" id="bkRestore">恢复</button>
       </div>
       <div class="line" style="font-size:13px;color:var(--ink-3);margin-top:8px">
-        数据只存在这台手机里，不上传。清除浏览器数据或卸载会一起清掉，所以每月导出一次 JSON。
+        数据只存在这台设备的浏览器里，不上传。清除浏览器数据或卸载会一起清掉，所以每月导出一次 JSON。
       </div>
     </div>
   </section>
@@ -1607,7 +1607,17 @@ function renderRecords(){
   var td=db.records.filter(function(r){return r.date===t;});
   var sum=td.reduce(function(a,r){return a+(+r.minutes||0);},0);
   document.getElementById('todaySum').textContent=td.length?fmtDur(sum):'';
-  if(!td.length) tw.innerHTML='<div class="empty">今天还没记。写一行就好，不用完整。</div>';
+  if(!td.length){
+    /* 只显示今天，容易让人以为昨天记的丢了——顺带说一句昨天的情况 */
+    var yd=db.records.filter(function(r){ return r.date===addDays(t,-1); });
+    var ymin=yd.reduce(function(a,r){return a+(+r.minutes||0);},0);
+    tw.innerHTML='<div class="empty">今天还没记。写一行就好，不用完整。</div>';
+    var tip=el('<div class="empty" style="font-size:13.5px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">'+
+      '<span>'+(yd.length? '昨天记了 '+yd.length+' 条 · '+fmtDur(ymin) : '昨天没有记录')+
+      '，都在台账里。</span><button class="ghost tap" style="padding:5px 11px;font-size:12.5px">看台账</button></div>');
+    tip.querySelector('button').onclick=function(){ buzz(8); go('ledger'); };
+    tw.appendChild(tip);
+  }
   else td.slice().reverse().forEach(function(r){ tw.appendChild(recNode(r,false)); });
   var aw=document.getElementById('allRecs'); aw.innerHTML='';
   var rest=db.records.filter(function(r){return r.date!==t;})
