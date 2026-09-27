@@ -266,6 +266,7 @@ details summary::-webkit-details-marker{display:none}
   <section class="view on" id="v-today">
     <div class="big-title">今天</div>
     <div class="sub-title" id="todayDate"></div>
+    <div id="bkBanner"></div>
     <div id="notifBanner"></div>
 
     <div class="card">
@@ -401,6 +402,11 @@ details summary::-webkit-details-marker{display:none}
     <div class="card">
       <div class="ttl"><span>存储</span></div>
       <div class="line" style="font-size:14px" id="dataStat"></div>
+      <div class="rowline" style="border-top:1px solid var(--sep);margin-top:10px">
+        <div class="grow"><div>应用内部副本</div>
+          <div style="font-size:12.5px;color:var(--ink-3);margin-top:2px" id="bkStat">检查中…</div></div>
+        <button class="ghost tap" id="bkRestore">恢复</button>
+      </div>
       <div class="line" style="font-size:13px;color:var(--ink-3);margin-top:8px">
         数据只存在这台手机里，不上传。清除浏览器数据或卸载会一起清掉，所以每月导出一次 JSON。
       </div>
@@ -435,9 +441,16 @@ function buzzOK(){ try{ if(navigator.vibrate) navigator.vibrate([12,50,18]); }ca
 /* ================= 存储 ================= */
 var db={records:[],reviews:[],mastery:{},notify:{on:false,time:'08:00'},
   ics:{at:null,days:{},legacyIds:[]},backfill:{},daily:{}}, storageOK=true;
+/* 读不出来就别往回写：原来读取失败会当成空数据继续跑，
+   接着第一次保存就把空的盖回去，真数据就没了。 */
+var storageSuspect=false;
 function load(){
+  var raw=null;
+  try{ raw=localStorage.getItem(KEY); }
+  catch(e){ storageSuspect=true; return; }
+  if(raw==null) return;                       // 干净的新设备，正常
   try{
-    var d=JSON.parse(localStorage.getItem(KEY)||'{}');
+    var d=JSON.parse(raw);
     db.records=Array.isArray(d.records)?d.records:[];
     db.reviews=Array.isArray(d.reviews)?d.reviews:[];
     db.mastery=(d.mastery&&typeof d.mastery==='object')?d.mastery:{};
@@ -448,12 +461,17 @@ function load(){
     if(d.backfill&&typeof d.backfill==='object') db.backfill=d.backfill;
     if(d.bf&&typeof d.bf==='object') db.bf={rec:d.bf.rec||[],day:d.bf.day||[]};
     if(d.daily&&typeof d.daily==='object') db.daily=d.daily;
-  }catch(e){}
+  }catch(e){
+    /* 存储里有东西但读不出来：判为可疑，先不写任何东西，等用户决定 */
+    storageSuspect=true;
+    try{ localStorage.setItem(KEY+'-corrupt-'+Date.now(),raw); }catch(e2){}
+  }
 }
 function save(){
+  if(storageSuspect) return;                  // 可疑状态下绝不覆盖
   try{ localStorage.setItem(KEY,JSON.stringify(db)); }
   catch(e){ storageOK=false; toast('这次没存进浏览器，记得导出备份'); }
-  mirrorToIDB();
+  mirrorToIDB(); backupToIDB();
 }
 
 /* ================= 工具 ================= */
@@ -489,6 +507,69 @@ function idbOpen(){
     r.onupgradeneeded=function(){ if(!r.result.objectStoreNames.contains('kv')) r.result.createObjectStore('kv'); };
     r.onsuccess=function(){ res(r.result); };
     r.onerror=function(){ rej(r.error); };
+  });
+}
+/* 第二份副本：整库写进 IndexedDB。它和 localStorage 是两套机制，
+   清理工具、意外覆盖经常只清掉其中一个，留一份能救回来。 */
+function backupToIDB(){
+  if(!('indexedDB' in window)) return Promise.resolve();
+  var snap={at:Date.now(),n:db.records.length,data:JSON.parse(JSON.stringify(db))};
+  return idbOpen().then(function(d){
+    return new Promise(function(res){
+      var tx=d.transaction('kv','readwrite');
+      tx.objectStore('kv').put(snap,'full');
+      tx.oncomplete=function(){ d.close(); res(); };
+      tx.onerror=function(){ res(); };
+    });
+  }).catch(function(){});
+}
+function readIDBBackup(){
+  if(!('indexedDB' in window)) return Promise.resolve(null);
+  return idbOpen().then(function(d){
+    return new Promise(function(res){
+      var g=d.transaction('kv','readonly').objectStore('kv').get('full');
+      g.onsuccess=function(){ d.close(); res(g.result||null); };
+      g.onerror=function(){ d.close(); res(null); };
+    });
+  }).catch(function(){ return null; });
+}
+/* 开机自检：存储读不出来，或者记录数比副本少很多，就问一句要不要恢复 */
+function checkBackup(){
+  readIDBBackup().then(function(b){
+    if(!b||!b.data||!Array.isArray(b.data.records)) return;
+    var mine=db.records.length, his=b.data.records.length;
+    if(!storageSuspect && his<=mine) return;
+    if(!storageSuspect && his-mine<3) return;
+    if(sessionStorage.getItem('bk-ignored')==='1') return;
+    var when=new Date(b.at), w=(when.getMonth()+1)+'/'+when.getDate()+' '+pad(when.getHours())+':'+pad(when.getMinutes());
+    var node=el('<div class="banner"><div class="txt">'+
+      (storageSuspect? '浏览器里的数据读不出来。':'现在是 '+mine+' 条记录，')+
+      '应用内部还留着一份副本：<b>'+his+' 条</b>，存于 '+w+'。</div>'+
+      '<button>恢复</button></div>');
+    node.querySelector('button').onclick=function(){
+      buzz(12);
+      if(!confirm('用副本里的 '+his+' 条记录替换现在的 '+mine+' 条？')) return;
+      db=b.data; storageSuspect=false; save(); renderAll(true); toast('已从副本恢复 · '+his+' 条');
+    };
+    var box=document.getElementById('bkBanner');
+    box.innerHTML=''; box.appendChild(node);
+  });
+}
+function renderBackupRow(){
+  var stat=document.getElementById('bkStat'),btn=document.getElementById('bkRestore');
+  if(!stat) return;
+  readIDBBackup().then(function(b){
+    if(!b||!b.data){ stat.textContent='还没有副本'; btn.style.opacity='.45'; return; }
+    var w=new Date(b.at);
+    stat.textContent=b.data.records.length+' 条记录 · 存于 '+(w.getMonth()+1)+'/'+w.getDate()+' '+
+      pad(w.getHours())+':'+pad(w.getMinutes());
+    btn.style.opacity='1';
+    btn.onclick=function(){
+      buzz(12);
+      var n=b.data.records.length;
+      if(!confirm('用副本里的 '+n+' 条记录替换现在的 '+db.records.length+' 条？')) return;
+      db=b.data; storageSuspect=false; save(); renderAll(true); toast('已从副本恢复 · '+n+' 条');
+    };
   });
 }
 function mirrorToIDB(){
@@ -1691,7 +1772,9 @@ function renderAll(animate){
   renderPlan(); renderDay(); renderStats(); renderLedger(); renderChart(!!animate&&chartView==='radius');
   renderInsight(); renderRecords(); renderLibrary(); renderNotifUI();
   document.getElementById('dataStat').textContent=
-    db.records.length+' 条记录 · '+pendings().length+' 条待回顾 · '+(storageOK?'本地存储正常':'本地存储不可用');
+    db.records.length+' 条记录 · '+pendings().length+' 条待回顾 · '+
+    (storageSuspect?'存储读取异常':(storageOK?'本地存储正常':'本地存储不可用'));
+  renderBackupRow();
 }
 function bindSeg(id,cb){
   var box=document.getElementById(id);
@@ -1771,6 +1854,8 @@ function init(){
     if(!document.hidden){ catchUp(); renderAll(); scheduleNotifications(); } });
 
   renderAll(true);
+  checkBackup();
+  if(!storageSuspect&&db.records.length) backupToIDB();
   if('serviceWorker' in navigator && /^https?:$/.test(location.protocol)){
     navigator.serviceWorker.register('sw.js').then(function(){
       mirrorToIDB();
